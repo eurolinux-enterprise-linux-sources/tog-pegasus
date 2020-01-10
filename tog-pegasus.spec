@@ -31,12 +31,14 @@
 %define debug_package   %{nil}
 %endif
 %define srcname    	pegasus
-%define major_ver	2.11
+%define major_ver	2.12
 %define pegasus_gid	65
 %define pegasus_uid	66
+%define cimsrvr_gid	134
+%define cimsrvr_uid	134
 
 Version: 		%{major_ver}.0
-Release: 		3%{?dist}
+Release: 		2%{?dist}
 Epoch:   		2
 #
 Summary:   		OpenPegasus WBEM Services for Linux
@@ -81,8 +83,6 @@ Patch6:			pegasus-2.5.1-pam-wbem.patch
 Patch7:			pegasus-2.9.0-fix_tests.patch
 #  9: Adds cimuser binary to admin commands
 Patch9:			pegasus-2.6.0-cimuser.patch
-# 11: Disables privilege separation feature
-Patch11:		pegasus-2.9.0-no_privilege_separation.patch
 # 12: Removes snmp tests, which we don't want to perform
 Patch12:		pegasus-2.7.0-no_snmp_tests.patch
 # 13: Changes to make package compile on sparc
@@ -93,8 +93,6 @@ Patch16:		pegasus-2.9.1-getpagesize.patch
 Patch17:		pegasus-2.10.0-dont-strip.patch
 # 18: Change build options
 Patch18:		pegasus-2.11.0-new-build-options.patch
-# 19: Backported from upstream
-Patch19:		pegasus-2.11.0-empty-string-values-in-embedded-instatnces.patch
 #
 Conflicts: 		openwbem
 Provides: 		tog-pegasus-cimserver
@@ -193,6 +191,9 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 
 %prep
 %setup -q -n %{srcname}
+# upstream tarball has wrong structure - pegasus/pegasus/
+cp -pR pegasus/* .
+rm -rf pegasus/
 %patch1 -p1 -b .no-rpath
 %patch2 -p1 -b .PIE
 %patch3 -p1 -b .redhat-config
@@ -200,7 +201,6 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 %patch6 -p1 -b .pam-wbem
 %patch7 -p1 -b .fix-tests
 %patch9 -p1 -b .cimuser
-%patch11 -p1 -b .no_privilege_separation
 %patch12 -p1 -b .no_snmp_tests
 %patch5 -p1 -b .local-or-remote-auth
 %patch13 -p1 -b .sparc
@@ -208,7 +208,6 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 %patch16 -p1 -b .getpagesize
 %patch17 -p1 -b .dont-strip
 %patch18 -p1 -b .new-build-options
-%patch19 -p0 -b .empty-string-values-in-embedded-instatnces
 find . -name 'CVS' -exec /bin/rm -rf '{}' ';' >/dev/null 2>&1 ||:;
 
 %build
@@ -398,7 +397,7 @@ popd
 %dir %attr(755,cimsrvr,cimsrvr) /var/run/tog-pegasus
 #%dir %attr(1755,cimsrvr,cimsrvr) /var/run/tog-pegasus/socket
 %dir %attr(1777,root,pegasus) /var/lib/Pegasus/cache/trace
-%config(noreplace) %attr(750,root,pegasus) /etc/rc.d/init.d/tog-pegasus
+%config(noreplace) %attr(755,root,pegasus) /etc/rc.d/init.d/tog-pegasus
 %config(noreplace) %attr(644,root,root) /etc/Pegasus/cimserver_planned.conf
 %config(noreplace) /etc/Pegasus/access.conf
 %config(noreplace) /etc/pam.d/wbem
@@ -523,10 +522,9 @@ fi
 # Privilege Separation is enabled - create the 'cimsrvr' user and
 # 'cimsrvr' group which are used as the context of the cimservermain process
 if [ $1 -gt 0 ]; then
-   /usr/sbin/groupadd cimsrvr > /dev/null 2>&1 || :;
-   /usr/sbin/useradd -c "tog-pegasus OpenPegasus WBEM/CIM services" \
-     -g cimsrvr -s /sbin/nologin -r -d /var/lib/Pegasus cimsrvr \
-     > /dev/null 2>&1 || :;
+   /usr/sbin/groupadd -g %{cimsrvr_gid} -f -r cimsrvr >/dev/null 2>&1 || :;
+   /usr/sbin/useradd -u %{cimsrvr_uid} -r -N -M -g cimsrvr -s /sbin/nologin -d /var/lib/Pegasus \
+     -c "tog-pegasus OpenPegasus WBEM/CIM services" cimsrvr >/dev/null 2>&1 || :;
 fi
 :;
 
@@ -557,10 +555,42 @@ if [ $1 -eq 1 ]; then
   ln -sf libpegslp_client.so.1 /usr/%{_lib}/libpegslp_client.so
   ln -sf libSLPProvider.so.1 /usr/%{_lib}/Pegasus/providers/libSLPProvider.so
 %endif
+
+   # Change ownership of Symbolic Links to the 'pegasus' group
+   #
+   /bin/chgrp -h pegasus /usr/%{_lib}/libpegclient.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/libpegcommon.so 
+   /bin/chgrp -h pegasus /usr/%{_lib}/libpegprovider.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/libDefaultProviderManager.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/libCIMxmlIndicationHandler.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/libsnmpIndicationHandler.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/Pegasus/providers/libComputerSystemProvider.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/Pegasus/providers/libOSProvider.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/Pegasus/providers/libProcessProvider.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/Pegasus/providerManagers/libCMPIProviderManager.so
+%if %{EXTERNAL_SLP_REQUESTED}
+   /bin/chgrp -h pegasus /usr/%{_lib}/libpegslp_client.so
+   /bin/chgrp -h pegasus /usr/%{_lib}/Pegasus/providers/libSLPProvider.so
+%endif
 fi
 :;
 
 %changelog
+* Mon Oct 29 2012 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-2
+- Fix local-or-remote-auth patch to work with IPv6 and with enabled
+  privilege separation
+  Resolves: #869664
+
+* Tue Oct 09 2012 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-1
+- Update to upstream version 2.12.0
+  Resolves: #825471, #739118, #716474
+- Change post created symlinks group owner to 'pegasus'
+  Resolves: #759064
+- Fix invocation of useradd without specifying a UID
+  Resolves: #800319
+- Fix initscript is not world readable
+  Resolves: #824297
+
 * Tue Mar 06 2012 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.11.0-3
 - Backport upstream patch which enables the embedded instanaces to have
   correct empty string values

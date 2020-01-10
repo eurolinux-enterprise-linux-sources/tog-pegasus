@@ -1,12 +1,23 @@
-diff -up pegasus/src/Executor/PAMAuth.h.local-or-remote-auth pegasus/src/Executor/PAMAuth.h
---- pegasus/src/Executor/PAMAuth.h.local-or-remote-auth	2009-12-15 11:52:33.000000000 +0100
-+++ pegasus/src/Executor/PAMAuth.h	2011-05-19 14:26:12.849499761 +0200
+diff -up pegasus/src/Executor/Messages.h.orig pegasus/src/Executor/Messages.h
+--- pegasus/src/Executor/Messages.h.orig	2012-10-16 14:53:31.124376018 +0200
++++ pegasus/src/Executor/Messages.h	2012-10-16 14:53:50.642434211 +0200
+@@ -199,6 +199,7 @@ struct ExecutorAuthenticatePasswordReque
+ {
+     char username[EXECUTOR_BUFFER_SIZE];
+     char password[EXECUTOR_BUFFER_SIZE];
++    int isRemoteUser;
+ };
+ 
+ struct ExecutorAuthenticatePasswordResponse
+diff -up pegasus/src/Executor/PAMAuth.h.orig pegasus/src/Executor/PAMAuth.h
+--- pegasus/src/Executor/PAMAuth.h.orig	2009-12-15 11:52:33.000000000 +0100
++++ pegasus/src/Executor/PAMAuth.h	2012-10-16 14:54:10.162493458 +0200
 @@ -49,6 +49,9 @@
  #include <Executor/Defines.h>
  #include <Executor/Socket.h>
  
 +#include <syslog.h>
-+typedef int Boolean;
++//typedef bool Boolean;
 +
  #ifdef PEGASUS_FLAVOR
  # define PAM_CONFIG_FILE "wbem" PEGASUS_FLAVOR
@@ -16,7 +27,7 @@ diff -up pegasus/src/Executor/PAMAuth.h.local-or-remote-auth pegasus/src/Executo
  
  static int PAMAuthenticateInProcess(
 -    const char* username, const char* password)
-+    const char* username, const char* password, const Boolean isRemoteUser)
++    const char* username, const char* password, const int isRemoteUser)
  {
      PAMData data;
      struct pam_conv pconv;
@@ -118,7 +129,7 @@ diff -up pegasus/src/Executor/PAMAuth.h.local-or-remote-auth pegasus/src/Executo
  */
  
 -static int PAMAuthenticate(const char* username, const char* password)
-+static int PAMAuthenticate(const char* username, const char* password, const Boolean isRemoteUser)
++static int PAMAuthenticate(const char* username, const char* password, const int isRemoteUser)
  {
  #ifdef PEGASUS_USE_PAM_STANDALONE_PROC
      return CimserveraProcessOperation("authenticate", username, password);
@@ -128,21 +139,21 @@ diff -up pegasus/src/Executor/PAMAuth.h.local-or-remote-auth pegasus/src/Executo
  #endif
  }
  
-diff -up pegasus/src/Executor/Parent.c.local-or-remote-auth pegasus/src/Executor/Parent.c
---- pegasus/src/Executor/Parent.c.local-or-remote-auth	2011-05-19 14:26:49.662347923 +0200
-+++ pegasus/src/Executor/Parent.c	2011-05-19 14:44:30.248822405 +0200
-@@ -635,7 +635,7 @@ static void HandleAuthenticatePasswordRe
+diff -up pegasus/src/Executor/Parent.c.orig pegasus/src/Executor/Parent.c
+--- pegasus/src/Executor/Parent.c.orig	2011-05-19 08:50:25.000000000 +0200
++++ pegasus/src/Executor/Parent.c	2012-10-16 14:55:47.731794152 +0200
+@@ -633,7 +633,7 @@ static void HandleAuthenticatePasswordRe
  
  #if defined(PEGASUS_PAM_AUTHENTICATION)
  
 -        if (PAMAuthenticate(request.username, request.password) != 0)
-+        if (PAMAuthenticate(request.username, request.password, 0) != 0)
++        if (PAMAuthenticate(request.username, request.password, request.isRemoteUser) != 0)
          {
              status = -1;
              break;
-diff -up pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c.local-or-remote-auth pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c
---- pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c.local-or-remote-auth	2011-05-19 15:34:25.895309730 +0200
-+++ pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c	2011-05-19 15:34:39.744506661 +0200
+diff -up pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c.orig pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c
+--- pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c.orig	2008-12-02 10:00:15.000000000 +0100
++++ pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c	2012-10-16 14:33:21.159612909 +0200
 @@ -49,7 +49,7 @@ int main()
          sprintf(prompt, "Enter password for %s: ", PEGASUS_CIMSERVERMAIN_USER);
          pw = getpass(prompt);
@@ -152,16 +163,16 @@ diff -up pegasus/src/Executor/tests/PAMAuth/TestExecutorPAMAuth.c.local-or-remot
              printf("Correct password\n");
          else
              printf("Wrong password\n");
-diff -up pegasus/src/Pegasus/Common/AuthenticationInfo.h.local-or-remote-auth pegasus/src/Pegasus/Common/AuthenticationInfo.h
---- pegasus/src/Pegasus/Common/AuthenticationInfo.h.local-or-remote-auth	2008-12-16 19:55:59.000000000 +0100
-+++ pegasus/src/Pegasus/Common/AuthenticationInfo.h	2011-05-19 14:26:12.849499761 +0200
+diff -up pegasus/src/Pegasus/Common/AuthenticationInfo.h.orig pegasus/src/Pegasus/Common/AuthenticationInfo.h
+--- pegasus/src/Pegasus/Common/AuthenticationInfo.h.orig	2008-12-16 19:55:59.000000000 +0100
++++ pegasus/src/Pegasus/Common/AuthenticationInfo.h	2012-10-16 14:33:21.160612914 +0200
 @@ -354,6 +354,22 @@ public:
          return _rep->getRemotePrivilegedUserAccessChecked();
      }
  
 +    /** Indicate whether the user is Remote 
 +    */
-+    Boolean isRemoteUser() const
++    int isRemoteUser() const
 +    {
 +        CheckRep(_rep);
 +        return _rep->isRemoteUser();
@@ -169,7 +180,7 @@ diff -up pegasus/src/Pegasus/Common/AuthenticationInfo.h.local-or-remote-auth pe
 +
 +    /** Set the Remote User flag
 +    */
-+    void setRemoteUser(Boolean isRemoteUser)
++    void setRemoteUser(int isRemoteUser)
 +    {
 +        CheckRep(_rep);
 +        _rep->setRemoteUser(isRemoteUser);
@@ -178,16 +189,16 @@ diff -up pegasus/src/Pegasus/Common/AuthenticationInfo.h.local-or-remote-auth pe
  private:
  
      AuthenticationInfo(AuthenticationInfoRep* rep) : _rep(rep)
-diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.local-or-remote-auth pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp
---- pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.local-or-remote-auth	2010-07-28 16:37:52.000000000 +0200
-+++ pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp	2011-05-19 14:26:12.850499919 +0200
+diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.orig pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp
+--- pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.orig	2010-07-28 16:37:52.000000000 +0200
++++ pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp	2012-10-16 14:33:21.160612914 +0200
 @@ -46,7 +46,8 @@ const String AuthenticationInfoRep::AUTH
  
  AuthenticationInfoRep::AuthenticationInfoRep(Boolean flag)
      : _connectionAuthenticated(false),
 -      _wasRemotePrivilegedUserAccessChecked(false)
 +      _wasRemotePrivilegedUserAccessChecked(false),
-+      _isRemoteUser(true)
++      _isRemoteUser(1)
  {
      PEG_METHOD_ENTER(
          TRC_AUTHENTICATION, "AuthenticationInfoRep::AuthenticationInfoRep");
@@ -195,7 +206,7 @@ diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.local-or-remote-au
      PEG_METHOD_EXIT();
  }
  
-+void AuthenticationInfoRep::setRemoteUser(Boolean isRemoteUser)
++void AuthenticationInfoRep::setRemoteUser(int isRemoteUser)
 +{
 +    PEG_METHOD_ENTER(TRC_AUTHENTICATION,
 +        "AuthenticationInfoRep::setRemoteUser");
@@ -208,19 +219,19 @@ diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.cpp.local-or-remote-au
  void AuthenticationInfoRep::setConnectionAuthenticated(
      Boolean connectionAuthenticated)
  {
-diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.h.local-or-remote-auth pegasus/src/Pegasus/Common/AuthenticationInfoRep.h
---- pegasus/src/Pegasus/Common/AuthenticationInfoRep.h.local-or-remote-auth	2008-12-16 19:55:59.000000000 +0100
-+++ pegasus/src/Pegasus/Common/AuthenticationInfoRep.h	2011-05-19 14:26:12.851500077 +0200
+diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.h.orig pegasus/src/Pegasus/Common/AuthenticationInfoRep.h
+--- pegasus/src/Pegasus/Common/AuthenticationInfoRep.h.orig	2008-12-16 19:55:59.000000000 +0100
++++ pegasus/src/Pegasus/Common/AuthenticationInfoRep.h	2012-10-16 14:33:21.160612914 +0200
 @@ -147,6 +147,13 @@ public:
      void setSecurityAssociation();
  #endif
  
-+    Boolean isRemoteUser() const
++    int isRemoteUser() const
 +    {
 +        return _isRemoteUser;
 +    }
 +
-+    void setRemoteUser(Boolean isRemoteUser);
++    void setRemoteUser(int isRemoteUser);
 +
      Array<SSLCertificateInfo*> getClientCertificateChain()
      {
@@ -229,20 +240,20 @@ diff -up pegasus/src/Pegasus/Common/AuthenticationInfoRep.h.local-or-remote-auth
      Boolean _wasRemotePrivilegedUserAccessChecked;
  
      Array<SSLCertificateInfo*> _clientCertificate;
-+    Boolean _isRemoteUser;
++    int _isRemoteUser;
  };
  
  PEGASUS_NAMESPACE_END
-diff -up pegasus/src/Pegasus/Common/Executor.cpp.local-or-remote-auth pegasus/src/Pegasus/Common/Executor.cpp
---- pegasus/src/Pegasus/Common/Executor.cpp.local-or-remote-auth	2010-10-29 07:29:50.000000000 +0200
-+++ pegasus/src/Pegasus/Common/Executor.cpp	2011-05-19 14:26:12.852500235 +0200
+diff -up pegasus/src/Pegasus/Common/Executor.cpp.orig pegasus/src/Pegasus/Common/Executor.cpp
+--- pegasus/src/Pegasus/Common/Executor.cpp.orig	2010-10-29 07:29:50.000000000 +0200
++++ pegasus/src/Pegasus/Common/Executor.cpp	2012-10-16 14:57:10.260055467 +0200
 @@ -126,7 +126,8 @@ public:
  
      virtual int authenticatePassword(
          const char* username,
 -        const char* password) = 0;
 +        const char* password,
-+        Boolean isRemoteUser) = 0;
++        int isRemoteUser) = 0;
  
      virtual int validateUser(
          const char* username) = 0;
@@ -252,7 +263,7 @@ diff -up pegasus/src/Pegasus/Common/Executor.cpp.local-or-remote-auth pegasus/sr
          const char* username,
 -        const char* password)
 +        const char* password,
-+        Boolean isRemoteUser)
++        int isRemoteUser)
      {
  #if defined(PEGASUS_PAM_AUTHENTICATION)
 -        return PAMAuthenticate(username, password);
@@ -266,17 +277,25 @@ diff -up pegasus/src/Pegasus/Common/Executor.cpp.local-or-remote-auth pegasus/sr
          const char* username,
 -        const char* password)
 +        const char* password,
-+        Boolean isRemoteUser)
++        int isRemoteUser)
      {
          AutoMutex autoMutex(_mutex);
  
-@@ -1173,10 +1176,11 @@ int Executor::reapProviderAgent(
+@@ -922,6 +925,7 @@ public:
+         memset(&request, 0, sizeof(request));
+         Strlcpy(request.username, username, EXECUTOR_BUFFER_SIZE);
+         Strlcpy(request.password, password, EXECUTOR_BUFFER_SIZE);
++        request.isRemoteUser = isRemoteUser;
+ 
+         if (SendBlock(_sock, &request, sizeof(request)) != sizeof(request))
+             return -1;
+@@ -1173,10 +1177,11 @@ int Executor::reapProviderAgent(
  
  int Executor::authenticatePassword(
      const char* username,
 -    const char* password)
 +    const char* password,
-+    Boolean isRemoteUser)
++    int isRemoteUser)
  {
      once(&_executorImplOnce, _initExecutorImpl);
 -    return _executorImpl->authenticatePassword(username, password);
@@ -284,29 +303,29 @@ diff -up pegasus/src/Pegasus/Common/Executor.cpp.local-or-remote-auth pegasus/sr
  }
  
  int Executor::validateUser(
-diff -up pegasus/src/Pegasus/Common/Executor.h.local-or-remote-auth pegasus/src/Pegasus/Common/Executor.h
---- pegasus/src/Pegasus/Common/Executor.h.local-or-remote-auth	2010-10-29 07:29:50.000000000 +0200
-+++ pegasus/src/Pegasus/Common/Executor.h	2011-05-19 14:26:12.853500393 +0200
+diff -up pegasus/src/Pegasus/Common/Executor.h.orig pegasus/src/Pegasus/Common/Executor.h
+--- pegasus/src/Pegasus/Common/Executor.h.orig	2010-10-29 07:29:50.000000000 +0200
++++ pegasus/src/Pegasus/Common/Executor.h	2012-10-16 14:33:21.162612924 +0200
 @@ -184,7 +184,8 @@ public:
      */
      static int authenticatePassword(
          const char* username,
 -        const char* password);
 +        const char* password,
-+        Boolean isRemoteUser);
++        int isRemoteUser);
  
      /** Check whether the given user is valid for the underlying authentcation
          mechanism.
-diff -up pegasus/src/Pegasus/Common/HTTPConnection.cpp.local-or-remote-auth pegasus/src/Pegasus/Common/HTTPConnection.cpp
---- pegasus/src/Pegasus/Common/HTTPConnection.cpp.local-or-remote-auth	2011-04-19 12:39:52.000000000 +0200
-+++ pegasus/src/Pegasus/Common/HTTPConnection.cpp	2011-05-19 14:26:12.854500551 +0200
-@@ -2295,6 +2295,30 @@ void HTTPConnection::_handleReadEvent()
+diff -up pegasus/src/Pegasus/Common/HTTPConnection.cpp.orig pegasus/src/Pegasus/Common/HTTPConnection.cpp
+--- pegasus/src/Pegasus/Common/HTTPConnection.cpp.orig	2012-08-30 16:49:10.000000000 +0200
++++ pegasus/src/Pegasus/Common/HTTPConnection.cpp	2012-10-16 14:59:06.452439014 +0200
+@@ -2305,6 +2305,70 @@ void HTTPConnection::_handleReadEvent()
          message->contentLanguages = contentLanguages;
          message->dest = _outputMessageQueue->getQueueId();
  
 +        // Allow authenticators to differentiate Remote and Local users:
-+        struct sockaddr_in sin_peer, sin_svr; // don't need to worry about IPv6 yet ...
-+        socklen_t slen1=sizeof(struct sockaddr_in), slen2=sizeof(struct sockaddr_in);
++        struct sockaddr_storage sin_peer, sin_svr;
++        socklen_t slen1 = sizeof (struct sockaddr_storage), slen2 = sizeof (struct sockaddr_storage);
 +        uint32_t  sock = _socket.get()->getSocket() ;
 +        memset(&sin_peer,'\0',slen1);
 +        memset(&sin_svr, '\0',slen2);
@@ -314,56 +333,96 @@ diff -up pegasus/src/Pegasus/Common/HTTPConnection.cpp.local-or-remote-auth pega
 +           ||( ::getsockname( sock, (struct sockaddr*)&sin_svr,  &slen2) == 0 )
 +           )
 +        {
-+            if( sin_peer.sin_family == AF_INET )
++            PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
++              "sin_peer.ss_family: %d",
++              sin_peer.ss_family));
++            if( sin_peer.ss_family == AF_INET )
 +            {
-+                if( ((ntohl( sin_peer.sin_addr.s_addr ) >> 24) & 0xff) == 127 )
++                struct sockaddr_in *s = (struct sockaddr_in *)&sin_peer;
++                if( ((ntohl( s->sin_addr.s_addr ) >> 24) & 0xff) == 127 )
 +                    // message was sent FROM localhost interface
-+                    message->isFromRemoteHost = false;
++                    message->isFromRemoteHost = 0;
 +            }
-+            if( sin_svr.sin_family == AF_INET )
++            if( sin_peer.ss_family == AF_INET6 )
 +            {
-+                if( ((ntohl( sin_svr.sin_addr.s_addr ) >> 24) & 0xff) == 127 )
++                char straddr[INET6_ADDRSTRLEN];
++                struct sockaddr_in6 *s = (struct sockaddr_in6 *)&sin_peer;
++                static const unsigned char localhost_bytes[] =
++                  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
++                inet_ntop(AF_INET6, &s->sin6_addr, straddr, sizeof(straddr));
++                PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
++                  "Peer IP address: %s",
++                  straddr));
++                if(memcmp(s->sin6_addr.s6_addr, localhost_bytes, 16) == 0)
++                    // message was sent FROM localhost interface
++                    message->isFromRemoteHost = 0;
++            }
++            PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
++              "sin_svr.ss_family: %d",
++              sin_svr.ss_family));
++            if( sin_svr.ss_family == AF_INET )
++            {
++                struct sockaddr_in *s = (struct sockaddr_in *)&sin_svr;
++                if( ((ntohl( s->sin_addr.s_addr ) >> 24) & 0xff) == 127 )
 +                    // message was sent TO localhost interface
-+                    message->isFromRemoteHost = false;
++                    message->isFromRemoteHost = 0;
++            }
++            if( sin_svr.ss_family == AF_INET6 )
++            {
++                char straddr[INET6_ADDRSTRLEN];
++                struct sockaddr_in6 *s = (struct sockaddr_in6 *)&sin_svr;
++                static const unsigned char localhost_bytes[] =
++                  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
++                inet_ntop(AF_INET6, &s->sin6_addr, straddr, sizeof(straddr));
++                PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
++                  "svr IP address: %s",
++                  straddr));
++                if(memcmp(s->sin6_addr.s6_addr, localhost_bytes, 16) == 0)
++                    // message was sent TO localhost interface
++                    message->isFromRemoteHost = 0;
 +            }
 +        }
++
++        PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
++          "isFromRemoteHost: %d",
++          message->isFromRemoteHost));
 +
          //
          // The _closeConnection method sets the _connectionClosePending flag.
          // If we are executing on the client side and the
-diff -up pegasus/src/Pegasus/Common/HTTPMessage.cpp.local-or-remote-auth pegasus/src/Pegasus/Common/HTTPMessage.cpp
---- pegasus/src/Pegasus/Common/HTTPMessage.cpp.local-or-remote-auth	2011-01-25 13:10:21.000000000 +0100
-+++ pegasus/src/Pegasus/Common/HTTPMessage.cpp	2011-05-19 14:26:12.856500867 +0200
-@@ -134,7 +134,8 @@ HTTPMessage::HTTPMessage(
+diff -up pegasus/src/Pegasus/Common/HTTPMessage.cpp.orig pegasus/src/Pegasus/Common/HTTPMessage.cpp
+--- pegasus/src/Pegasus/Common/HTTPMessage.cpp.orig	2012-08-30 16:49:11.000000000 +0200
++++ pegasus/src/Pegasus/Common/HTTPMessage.cpp	2012-10-16 14:33:21.164612934 +0200
+@@ -135,7 +135,8 @@ HTTPMessage::HTTPMessage(
      authInfo(0),
      acceptLanguagesDecoded(false),
      contentLanguagesDecoded(false),
 -    binaryResponse(false)
 +    binaryResponse(false),
-+    isFromRemoteHost(true)
++    isFromRemoteHost(1)
  {
      if (cimException_)
          cimException = *cimException_;
-diff -up pegasus/src/Pegasus/Common/HTTPMessage.h.local-or-remote-auth pegasus/src/Pegasus/Common/HTTPMessage.h
---- pegasus/src/Pegasus/Common/HTTPMessage.h.local-or-remote-auth	2011-01-25 13:10:21.000000000 +0100
-+++ pegasus/src/Pegasus/Common/HTTPMessage.h	2011-05-19 14:26:12.856500867 +0200
+diff -up pegasus/src/Pegasus/Common/HTTPMessage.h.orig pegasus/src/Pegasus/Common/HTTPMessage.h
+--- pegasus/src/Pegasus/Common/HTTPMessage.h.orig	2012-08-30 16:49:11.000000000 +0200
++++ pegasus/src/Pegasus/Common/HTTPMessage.h	2012-10-16 14:33:21.164612934 +0200
 @@ -73,6 +73,7 @@ public:
      ContentLanguageList contentLanguages;
      Boolean acceptLanguagesDecoded;
      Boolean contentLanguagesDecoded;
-+    Boolean isFromRemoteHost;
++    int isFromRemoteHost;
      CIMException cimException;
      bool binaryResponse;
  
-diff -up pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp.local-or-remote-auth pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp
---- pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp.local-or-remote-auth	2010-10-29 07:29:50.000000000 +0200
-+++ pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp	2011-05-19 14:26:12.857501025 +0200
+diff -up pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp.orig pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp
+--- pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp.orig	2010-10-29 07:29:50.000000000 +0200
++++ pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp	2012-10-16 14:33:21.165612939 +0200
 @@ -76,7 +76,7 @@ void testExecutorLoopbackImpl()
  #endif
  
      PEGASUS_TEST_ASSERT(Executor::authenticatePassword(
 -        "xnonexistentuserx", "wrongpassword") == -1);
-+        "xnonexistentuserx", "wrongpassword", true) == -1);
++        "xnonexistentuserx", "wrongpassword", 1) == -1);
      PEGASUS_TEST_ASSERT(Executor::validateUser("xnonexistentuserx") == -1);
  
      char challengeFilePath[EXECUTOR_BUFFER_SIZE];
@@ -372,13 +431,13 @@ diff -up pegasus/src/Pegasus/Common/tests/Executor/TestExecutor.cpp.local-or-rem
  
      PEGASUS_TEST_ASSERT(Executor::authenticatePassword(
 -        "xnonexistentuserx", "wrongpassword") == -1);
-+        "xnonexistentuserx", "wrongpassword", true) == -1);
++        "xnonexistentuserx", "wrongpassword", int) == -1);
      PEGASUS_TEST_ASSERT(Executor::validateUser("xnonexistentuserx") == -1);
  
      char challengeFilePath[EXECUTOR_BUFFER_SIZE];
-diff -up pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp
---- pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp.local-or-remote-auth	2009-08-07 07:43:31.000000000 +0200
-+++ pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp	2011-05-19 14:26:12.858501183 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp.orig pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp
+--- pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp.orig	2009-08-07 07:43:31.000000000 +0200
++++ pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.cpp	2012-10-16 14:33:21.165612939 +0200
 @@ -153,7 +153,7 @@ Boolean BasicAuthenticationHandler::auth
      }
      authInfo->setRemotePrivilegedUserAccessChecked();
@@ -388,55 +447,55 @@ diff -up pegasus/src/Pegasus/Security/Authentication/BasicAuthenticationHandler.
  
      // Log audit message.
      PEG_AUDIT_LOG(logBasicAuthentication(
-diff -up pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h
---- pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h.local-or-remote-auth	2008-12-16 19:57:08.000000000 +0100
-+++ pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h	2011-05-19 14:26:12.858501183 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h.orig pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h
+--- pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h.orig	2008-12-16 19:57:08.000000000 +0100
++++ pegasus/src/Pegasus/Security/Authentication/BasicAuthenticator.h	2012-10-16 14:33:21.165612939 +0200
 @@ -65,7 +65,8 @@ public:
      */
      virtual Boolean authenticate(
          const String& userName,
 -        const String& password) = 0;
 +        const String& password,
-+        Boolean isRemoteUser) = 0;
++        int isRemoteUser) = 0;
  
      /** Construct and return the HTTP Basic authentication challenge header
          @return A string containing the authentication challenge header.
-diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h
---- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h.local-or-remote-auth	2008-12-16 19:57:08.000000000 +0100
-+++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h	2011-05-19 14:26:12.859501341 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h.orig pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h
+--- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h.orig	2008-12-16 19:57:08.000000000 +0100
++++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticator.h	2012-10-16 14:33:21.166612944 +0200
 @@ -53,7 +53,8 @@ public:
  
      Boolean authenticate(
          const String& userName,
 -        const String& password);
 +        const String& password,
-+        Boolean isRemoteUser);
++        int isRemoteUser);
  
      Boolean validateUser(const String& userName);
  
-diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp
---- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp.local-or-remote-auth	2008-12-16 19:57:08.000000000 +0100
-+++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp	2011-05-19 14:26:12.859501341 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp.orig pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp
+--- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp.orig	2008-12-16 19:57:08.000000000 +0100
++++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorStub.cpp	2012-10-16 14:33:21.166612944 +0200
 @@ -73,7 +73,8 @@ PAMBasicAuthenticator::~PAMBasicAuthenti
  
  Boolean PAMBasicAuthenticator::authenticate(
      const String& userName,
 -    const String& password)
 +    const String& password,
-+    Boolean isRemoteUser)
++    int isRemoteUser)
  {
      PEG_METHOD_ENTER(TRC_AUTHENTICATION,
          "PAMBasicAuthenticator::authenticate()");
-diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp
---- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp.local-or-remote-auth	2008-12-16 19:57:08.000000000 +0100
-+++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp	2011-05-19 14:26:12.860501499 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp.orig pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp
+--- pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp.orig	2008-12-16 19:57:08.000000000 +0100
++++ pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.cpp	2012-10-16 14:33:21.166612944 +0200
 @@ -64,13 +64,14 @@ PAMBasicAuthenticator::~PAMBasicAuthenti
  
  Boolean PAMBasicAuthenticator::authenticate(
      const String& userName,
 -    const String& password)
 +    const String& password,
-+    Boolean isRemoteUser)
++    int isRemoteUser)
  {
      PEG_METHOD_ENTER(TRC_AUTHENTICATION,
          "PAMBasicAuthenticator::authenticate()");
@@ -447,22 +506,22 @@ diff -up pegasus/src/Pegasus/Security/Authentication/PAMBasicAuthenticatorUnix.c
      {
          return false;
      }
-diff -up pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp.local-or-remote-auth pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp
---- pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp.local-or-remote-auth	2009-04-17 16:39:31.000000000 +0200
-+++ pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp	2011-05-19 14:26:12.860501499 +0200
+diff -up pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp.orig pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp
+--- pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp.orig	2009-04-17 16:39:31.000000000 +0200
++++ pegasus/src/Pegasus/Security/Authentication/SecureBasicAuthenticator.cpp	2012-10-16 14:33:21.167612949 +0200
 @@ -236,7 +236,7 @@ Boolean SecureBasicAuthenticator::authen
          if (Executor::detectExecutor() == 0)
          {
              if (Executor::authenticatePassword(
 -                userName.getCString(), password.getCString()) == 0)
-+                userName.getCString(), password.getCString(), true) == 0)
++                userName.getCString(), password.getCString(), 1) == 0)
              {
                  authenticated = true;
              }
-diff -up pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp.local-or-remote-auth pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp
---- pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp.local-or-remote-auth	2009-08-07 07:43:31.000000000 +0200
-+++ pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp	2011-05-19 14:26:12.862501815 +0200
-@@ -421,6 +421,9 @@ void HTTPAuthenticatorDelegator::handleH
+diff -up pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp.orig pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp
+--- pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp.orig	2012-08-30 16:49:12.000000000 +0200
++++ pegasus/src/Pegasus/Server/HTTPAuthenticatorDelegator.cpp	2012-10-16 14:33:21.168612954 +0200
+@@ -426,6 +426,9 @@ void HTTPAuthenticatorDelegator::handleH
          Tracer::LEVEL3,
          "HTTPAuthenticatorDelegator - Authentication processing start");
  

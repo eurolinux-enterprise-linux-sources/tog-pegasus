@@ -1,13 +1,10 @@
-diff -up pegasus/env_var_Linux.status.new-build-options pegasus/env_var_Linux.status
---- pegasus/env_var_Linux.status.new-build-options	2011-07-26 14:14:21.115550020 +0200
-+++ pegasus/env_var_Linux.status	2011-07-26 14:52:37.646549676 +0200
-@@ -31,12 +31,20 @@ PEGASUS_USE_RELEASE_DIRS=true
- PEGASUS_USE_SYSLOGS=true
- PEGASUS_CIM_SCHEMA=CIM228
+diff -up pegasus/env_var_Linux.status.orig pegasus/env_var_Linux.status
+--- pegasus/env_var_Linux.status.orig	2012-10-08 14:30:39.002090218 +0200
++++ pegasus/env_var_Linux.status	2012-10-08 14:31:20.759290474 +0200
+@@ -33,10 +33,18 @@ PEGASUS_CIM_SCHEMA=CIM231
  PEGASUS_USE_NET_SNMP=true
--PEGASUS_ENABLE_PRIVILEGE_SEPARATION=false
-+PEGASUS_ENABLE_PRIVILEGE_SEPARATION=true
-+
+ PEGASUS_ENABLE_PRIVILEGE_SEPARATION=true
+ 
 +PEGASUS_DISABLE_INSTANCE_QUALIFIERS=true
 +PEGASUS_ENABLE_IPV6=true
 +PEGASUS_ALLOW_ABSOLUTEPATH_IN_PROVIDERMODULE=true
@@ -15,7 +12,7 @@ diff -up pegasus/env_var_Linux.status.new-build-options pegasus/env_var_Linux.st
 +PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT=true
 +PEGASUS_ENABLE_PROTOCOL_BINARY=true
 +PEGASUS_EXTRA_PROVIDER_LIB_DIR=/usr/lib64/Pegasus/providers:/opt/ibm/platform/lib:/usr/lib64/cmpi
- 
++
  PEGASUS_ENABLE_INTEROP_PROVIDER=false
  PEGASUS_ENABLE_PROTOCOL_WSMAN=false
  
