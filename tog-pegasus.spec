@@ -38,7 +38,7 @@
 %define cimsrvr_uid	134
 
 Version: 		%{major_ver}.0
-Release: 		2%{?dist}
+Release: 		3%{?dist}
 Epoch:   		2
 #
 Summary:   		OpenPegasus WBEM Services for Linux
@@ -576,6 +576,10 @@ fi
 :;
 
 %changelog
+* Mon Jun 10 2013 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-3
+- Disable privilege separation
+  Resolves: #957233
+
 * Mon Oct 29 2012 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-2
 - Fix local-or-remote-auth patch to work with IPv6 and with enabled
   privilege separation
