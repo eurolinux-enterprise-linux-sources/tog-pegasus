@@ -1,0 +1,471 @@
+diff -up pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig pegasus/rpm/manLinux/man8.Z/cimconfig.8
+--- pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig	2012-07-26 17:23:14.000000000 +0200
++++ pegasus/rpm/manLinux/man8.Z/cimconfig.8	2015-11-05 13:46:02.957918480 +0100
+@@ -387,6 +387,17 @@ like .+, !, -.
+ .BR Dynamic: \0No
+ .PD
+ .PP
++.B sslBackwardCompatibility
++.IP
++.BR Description: "This setting specifies whether the ssl supports SSLv3.
++Ideally for security Compilance purposes it is by default set to false.
++.PD 0
++.IP
++.BR "Default Value: " false
++.IP
++.BR Dynamic: \0No
++.PD
++.PP
+ If both the 
+ .B enableHttpsConnection
+ and
+diff -up pegasus/src/Pegasus/Common/SSLContext.cpp.orig pegasus/src/Pegasus/Common/SSLContext.cpp
+--- pegasus/src/Pegasus/Common/SSLContext.cpp.orig	2012-07-25 06:37:32.000000000 +0200
++++ pegasus/src/Pegasus/Common/SSLContext.cpp	2015-11-05 13:48:25.118517090 +0100
+@@ -523,7 +523,8 @@ SSLContextRep::SSLContextRep(
+     const String& crlPath,
+     SSLCertificateVerifyFunction* verifyCert,
+     const String& randomFile,
+-    const String& cipherSuite)
++    const String& cipherSuite,
++    const Boolean& sslCompatibility)
+ {
+     PEG_METHOD_ENTER(TRC_SSL, "SSLContextRep::SSLContextRep()");
+ 
+@@ -533,6 +534,7 @@ SSLContextRep::SSLContextRep(
+     _crlPath = crlPath;
+     _certificateVerifyFunction = verifyCert;
+     _cipherSuite = cipherSuite;
++    _sslCompatibility = sslCompatibility;
+ 
+     //
+     // If a truststore and/or peer verification function is specified,
+@@ -559,6 +561,7 @@ SSLContextRep::SSLContextRep(const SSLCo
+     _certificateVerifyFunction = sslContextRep._certificateVerifyFunction;
+     _randomFile = sslContextRep._randomFile;
+     _cipherSuite = sslContextRep._cipherSuite;
++    _sslCompatibility = sslContextRep._sslCompatibility;
+ 
+     _sslContext = _makeSSLContext();
+ 
+@@ -720,6 +723,19 @@ SSL_CTX* SSLContextRep::_makeSSLContext(
+         throw SSLException(parms);
+     }
+ 
++    int options = SSL_OP_ALL;
++
++    SSL_CTX_set_options(sslContext, options);
++    if ( _sslCompatibility == false )
++    {
++        // Disable SSLv3
++        options = SSL_OP_NO_SSLv3;
++    }
++
++    // sslv2 is off permanently even if sslCompatibility is true
++    options |= SSL_OP_NO_SSLv2;
++    SSL_CTX_set_options(sslContext, options);
++
+ #ifdef PEGASUS_SSL_WEAKENCRYPTION
+     if (!(SSL_CTX_set_cipher_list(sslContext, SSL_TXT_EXP40)))
+     {
+@@ -765,12 +781,6 @@ SSL_CTX* SSLContextRep::_makeSSLContext(
+     SSL_CTX_set_mode (sslContext, SSL_MODE_RELEASE_BUFFERS);
+ #endif
+ 
+-    int options = SSL_OP_ALL;
+-#ifndef PEGASUS_ENABLE_SSLV2 //SSLv2 is disabled by default
+-    options |= SSL_OP_NO_SSLv2;
+-#endif
+-    SSL_CTX_set_options(sslContext, options);
+-
+     if (_verifyPeer)
+     {
+         // ATTN: We might still need a flag to specify
+@@ -1319,7 +1329,8 @@ SSLContext::SSLContext(
+         const String& crlPath,
+         SSLCertificateVerifyFunction* verifyCert,
+         const String& randomFile,
+-        const String& cipherSuite)
++        const String& cipherSuite,
++        const Boolean& sslCompatibility)
+ {
+ #ifndef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
+     if (crlPath.size() > 0)
+@@ -1332,7 +1343,7 @@ SSLContext::SSLContext(
+ #endif
+     _rep = new SSLContextRep(
+         trustStore, certPath, keyPath, crlPath, verifyCert, randomFile, 
+-        cipherSuite);
++        cipherSuite, sslCompatibility);
+ }
+ #endif
+ 
+diff -up pegasus/src/Pegasus/Common/SSLContext.h.orig pegasus/src/Pegasus/Common/SSLContext.h
+--- pegasus/src/Pegasus/Common/SSLContext.h.orig	2011-08-09 09:32:48.000000000 +0200
++++ pegasus/src/Pegasus/Common/SSLContext.h	2015-11-05 13:45:02.057662042 +0100
+@@ -526,6 +526,8 @@ public:
+         @param randomFile  file path of a random file that may be used as a seed
+         for random number generation by OpenSSL.
+         @param cipherSuite cipher list
++        @param sslCompatibility  a false value of sslCompatibility 
++        will support only TLS1.2 and true will support SSLv3 and TLSv1
+ 
+         NOTE:
+         For platforms that support /dev/random(urandom), the /dev/random
+@@ -547,7 +549,8 @@ public:
+         const String& crlPath,
+         SSLCertificateVerifyFunction* verifyCert,
+         const String& randomFile,
+-        const String& cipherSuite);
++        const String& cipherSuite,
++        const Boolean & sslCompatibility = false);
+ #endif
+ 
+ #ifdef PEGASUS_USE_DEPRECATED_INTERFACES
+diff -up pegasus/src/Pegasus/Common/SSLContextRep.h.orig pegasus/src/Pegasus/Common/SSLContextRep.h
+--- pegasus/src/Pegasus/Common/SSLContextRep.h.orig	2011-08-09 09:32:48.000000000 +0200
++++ pegasus/src/Pegasus/Common/SSLContextRep.h	2015-11-05 13:45:02.057662042 +0100
+@@ -232,7 +232,8 @@ public:
+         const String& crlPath = String::EMPTY,
+         SSLCertificateVerifyFunction* verifyCert = NULL,
+         const String& randomFile = String::EMPTY,
+-        const String& cipherSuite = String::EMPTY);
++        const String& cipherSuite = String::EMPTY,
++        const Boolean& sslCompatibility = false);
+ 
+     SSLContextRep(const SSLContextRep& sslContextRep);
+ 
+@@ -289,6 +290,7 @@ private:
+     String _crlPath;
+     String _randomFile;
+     String _cipherSuite;
++    Boolean _sslCompatibility;
+     SSL_CTX * _sslContext;
+ 
+     Boolean _verifyPeer;
+diff -up pegasus/src/Pegasus/Config/ConfigManager.cpp.orig pegasus/src/Pegasus/Config/ConfigManager.cpp
+--- pegasus/src/Pegasus/Config/ConfigManager.cpp.orig	2012-07-26 17:23:16.000000000 +0200
++++ pegasus/src/Pegasus/Config/ConfigManager.cpp	2015-11-05 13:45:02.057662042 +0100
+@@ -131,6 +131,8 @@ static struct OwnerEntry _properties[] =
+          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
+     {"sslTrustStore",
+          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
++    {"sslBackwardCompatibility",
++         (ConfigPropertyOwner*)&ConfigManager::securityOwner},
+ #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
+     {"crlStore",
+          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
+diff -up pegasus/src/Pegasus/Config/ConfigPropertyHelp.cpp.orig pegasus/src/Pegasus/Config/ConfigPropertyHelp.cpp
+--- pegasus/src/Pegasus/Config/ConfigPropertyHelp.cpp.orig	2012-08-05 17:42:54.000000000 +0200
++++ pegasus/src/Pegasus/Config/ConfigPropertyHelp.cpp	2015-11-05 13:45:02.057662042 +0100
+@@ -297,7 +297,11 @@ struct configPropertyDescription configP
+         "If set to a positive integer, defines the minimal time interval in\n"
+         "seconds indication service waits before retrying delivery of\n"
+         "indication to a listener destination that previously failed.\n"
+-        "Cimserver may take longer due to QoS or other processing."}
++        "Cimserver may take longer due to QoS or other processing."},
++
++   {"sslBackwardCompatibility",
++        "If 'true', OpenPegasus support SSLv3 and TLSv1 protocol.If 'false',\n"
++        "OpenPegasus support only TLS1.2 protocol for openssl 1.0.1+"}
+ };
+ 
+ Uint32 configPropertyDescriptionListSize =
+diff -up pegasus/src/Pegasus/Config/SecurityPropertyOwner.cpp.orig pegasus/src/Pegasus/Config/SecurityPropertyOwner.cpp
+--- pegasus/src/Pegasus/Config/SecurityPropertyOwner.cpp.orig	2012-07-26 17:23:16.000000000 +0200
++++ pegasus/src/Pegasus/Config/SecurityPropertyOwner.cpp	2015-11-05 13:45:02.057662042 +0100
+@@ -90,6 +90,7 @@ static struct ConfigPropertyRow properti
+     {"sslClientVerificationMode", "optional", IS_STATIC, IS_VISIBLE},
+     {"sslTrustStoreUserName", "QYCMCIMOM", IS_STATIC, IS_VISIBLE},
+     {"enableNamespaceAuthorization", "false", IS_STATIC, IS_VISIBLE},
++    {"sslBackwardCompatibility","false", IS_STATIC, IS_VISIBLE},
+ # ifdef PEGASUS_KERBEROS_AUTHENTICATION
+     {"kerberosServiceName", "cimom", IS_STATIC, IS_VISIBLE},
+ # endif
+@@ -108,6 +109,7 @@ static struct ConfigPropertyRow properti
+ #endif
+     {"sslKeyFilePath", "file.pem", IS_STATIC, IS_VISIBLE},
+     {"sslTrustStore", "cimserver_trust", IS_STATIC, IS_VISIBLE},
++    {"sslBackwardCompatibility","false", IS_STATIC, IS_VISIBLE},
+ #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
+     {"crlStore", "crl", IS_STATIC, IS_VISIBLE},
+ #endif
+@@ -151,6 +153,7 @@ SecurityPropertyOwner::SecurityPropertyO
+     _httpAuthType.reset(new ConfigProperty());
+     _passwordFilePath.reset(new ConfigProperty());
+     _certificateFilePath.reset(new ConfigProperty());
++    _sslBackwardCompatibility.reset(new ConfigProperty());
+     _keyFilePath.reset(new ConfigProperty());
+     _trustStore.reset(new ConfigProperty());
+ #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
+@@ -243,6 +246,22 @@ void SecurityPropertyOwner::initialize()
+                 properties[i].externallyVisible;
+         }
+         else if (String::equal(
++                     properties[i].propertyName, "sslBackwardCompatibility"))
++        {
++            _sslBackwardCompatibility->propertyName =
++                properties[i].propertyName;
++            _sslBackwardCompatibility->defaultValue =
++                properties[i].defaultValue;
++            _sslBackwardCompatibility->currentValue =
++                properties[i].defaultValue;
++            _sslBackwardCompatibility->plannedValue =
++                properties[i].defaultValue;
++            _sslBackwardCompatibility->dynamic =
++                properties[i].dynamic;
++            _sslBackwardCompatibility->externallyVisible =
++                properties[i].externallyVisible;
++        }
++        else if (String::equal(
+                      properties[i].propertyName, "sslKeyFilePath"))
+         {
+             _keyFilePath->propertyName = properties[i].propertyName;
+@@ -414,6 +433,10 @@ struct ConfigProperty* SecurityPropertyO
+     {
+         return _certificateFilePath.get();
+     }
++    else if (String::equal(_sslBackwardCompatibility->propertyName, name))
++    {
++        return _sslBackwardCompatibility.get();
++    }
+     else if (String::equal(_keyFilePath->propertyName, name))
+     {
+         return _keyFilePath.get();
+@@ -618,7 +641,9 @@ Boolean SecurityPropertyOwner::isValid(
+         String::equal(
+             _enableRemotePrivilegedUserAccess->propertyName, name) ||
+         String::equal(
+-            _enableSubscriptionsForNonprivilegedUsers->propertyName, name)
++            _enableSubscriptionsForNonprivilegedUsers->propertyName, name) ||
++        String::equal(
++            _sslBackwardCompatibility->propertyName, name)
+ #ifdef PEGASUS_OS_ZOS
+         || String::equal(_enableCFZAPPLID->propertyName, name)
+ #endif
+diff -up pegasus/src/Pegasus/Config/SecurityPropertyOwner.h.orig pegasus/src/Pegasus/Config/SecurityPropertyOwner.h
+--- pegasus/src/Pegasus/Config/SecurityPropertyOwner.h.orig	2012-07-26 17:23:16.000000000 +0200
++++ pegasus/src/Pegasus/Config/SecurityPropertyOwner.h	2015-11-05 13:45:02.058662046 +0100
+@@ -209,6 +209,7 @@ private:
+     AutoPtr<struct ConfigProperty> _sslTrustStoreUserName;
+     AutoPtr<struct ConfigProperty> _enableSubscriptionsForNonprivilegedUsers;
+     AutoPtr<struct ConfigProperty> _cipherSuite;
++    AutoPtr<struct ConfigProperty> _sslBackwardCompatibility;
+ 
+ #ifdef PEGASUS_ENABLE_USERGROUP_AUTHORIZATION
+     AutoPtr<struct ConfigProperty> _authorizedUserGroups;
+diff -up pegasus/src/Pegasus/DynListener/DynamicListenerConfig.cpp.orig pegasus/src/Pegasus/DynListener/DynamicListenerConfig.cpp
+--- pegasus/src/Pegasus/DynListener/DynamicListenerConfig.cpp.orig	2012-08-30 13:11:41.000000000 +0200
++++ pegasus/src/Pegasus/DynListener/DynamicListenerConfig.cpp	2015-11-05 13:45:02.058662046 +0100
+@@ -65,6 +65,10 @@ static struct OptionRow optionsTable[] =
+ 
+ {"sslCipherSuite", "DEFAULT", false, Option::STRING, 0, 0,
+  "sslCipherSuite", "ssl cipher value for authentication"},
++
++{"sslBackwardCompatibility","false", false, Option::BOOLEAN, 0, 0,
++ "sslBackwardCompatibility","ssl Compatiblity value to support "
++ "invoking compatible api's of earlier protocols"},
+ #endif
+ {"consumerDir", "", false, Option::STRING, 0, 0,
+  "consumerDir", "path to the consumer libraries"},
+diff -up pegasus/src/Pegasus/DynListener/DynamicListener.cpp.orig pegasus/src/Pegasus/DynListener/DynamicListener.cpp
+--- pegasus/src/Pegasus/DynListener/DynamicListener.cpp.orig	2012-08-30 13:11:41.000000000 +0200
++++ pegasus/src/Pegasus/DynListener/DynamicListener.cpp	2015-11-05 13:45:02.058662046 +0100
+@@ -87,7 +87,8 @@ public:
+         Boolean enableConsumerUnload,
+         Uint32 consumerIdleTimeout,
+         Uint32 shutdownTimeout,
+-        const String & sslCipherSuite="DEFAULT");
++        const String & sslCipherSuite="DEFAULT",
++        const Boolean& sslCompatibility = false);
+ 
+     ~DynamicListenerRep();
+ 
+@@ -167,7 +168,8 @@ DynamicListenerRep::DynamicListenerRep(
+     Boolean enableConsumerUnload,          
+     Uint32 consumerIdleTimeout,            
+     Uint32 shutdownTimeout,
+-    const String & sslCipherSuite) :
++    const String & sslCipherSuite,
++    const Boolean& sslCompatibility) :
+         _port(portNumber),
+         _sslContext(0),
+         _sslContextObjectLock(0),
+@@ -186,7 +188,8 @@ DynamicListenerRep::DynamicListenerRep(
+             String(),
+             true,
+             String(),
+-            sslCipherSuite);
++            sslCipherSuite,
++            sslCompatibility);
+         _sslContext = _sslContextMgr->getSSLContext();
+         _sslContextObjectLock = _sslContextMgr->getSSLContextObjectLock();
+     }
+@@ -337,7 +340,9 @@ DynamicListener::DynamicListener(
+     Boolean enableConsumerUnload,
+     Uint32 consumerIdleTimeout,
+     Uint32 shutdownTimeout,
+-    const String & sslCipherSuite)     //ONLY IF PEGASUS_HAS_SSL
++    const String & sslCipherSuite,
++    const Boolean& sslCompatibility)
++        //ONLY IF PEGASUS_HAS_SSL
+ {
+ 
+     _rep = new DynamicListenerRep(
+@@ -350,7 +355,8 @@ DynamicListener::DynamicListener(
+         enableConsumerUnload,
+         consumerIdleTimeout,
+         shutdownTimeout,
+-        sslCipherSuite);
++        sslCipherSuite,
++        sslCompatibility);
+ }
+ 
+ DynamicListener::DynamicListener(
+diff -up pegasus/src/Pegasus/DynListener/DynamicListener.h.orig pegasus/src/Pegasus/DynListener/DynamicListener.h
+--- pegasus/src/Pegasus/DynListener/DynamicListener.h.orig	2012-08-30 13:11:41.000000000 +0200
++++ pegasus/src/Pegasus/DynListener/DynamicListener.h	2015-11-05 13:45:02.058662046 +0100
+@@ -68,7 +68,8 @@ public:
+                     Boolean enableConsumerUnload = DEFAULT_CONSUMER_UNLOAD,
+                     Uint32 consumerIdleTimeout = DEFAULT_IDLE_TIMEOUT,
+                     Uint32 shutdownTimeout = DEFAULT_SHUTDOWN_TIMEOUT,
+-                    const String & sslCipherSuite="DEFAULT");
++                    const String & sslCipherSuite="DEFAULT",
++                    const Boolean& sslCompatibility = false);
+ 
+     DynamicListener(Uint32 portNumber,
+                     const String& consumerDir,
+diff -up pegasus/src/Pegasus/DynListener/Service/cimlistener.cpp.orig pegasus/src/Pegasus/DynListener/Service/cimlistener.cpp
+--- pegasus/src/Pegasus/DynListener/Service/cimlistener.cpp.orig	2012-08-30 13:11:41.000000000 +0200
++++ pegasus/src/Pegasus/DynListener/Service/cimlistener.cpp	2015-11-05 13:45:02.058662046 +0100
+@@ -644,6 +644,7 @@ int CIMListenerProcess::cimserver_run(
+     String sslKeyFilePath;
+     String sslCertificateFilePath;
+     String sslCipherSuite;
++    Boolean sslCompatibility;
+     String consumerDir;
+     String consumerConfigDir;
+     Boolean enableConsumerUnload;
+@@ -664,6 +665,7 @@ int CIMListenerProcess::cimserver_run(
+     {
+         throw InvalidPropertyValue("sslCipherSuite",sslCipherSuite);
+     } 
++    sslCompatibility = configManager->isTrue("sslBackwardCompatibility");
+     configManager->lookupValue("consumerDir", consumerDir);
+     configManager->lookupValue("consumerConfigDir", consumerConfigDir);
+     enableConsumerUnload = configManager->isTrue("enableConsumerUnload");
+@@ -816,7 +818,8 @@ MessageLoader::_useProcessLocale = false
+                 enableConsumerUnload,
+                 consumerIdleTimeout,
+                 shutdownTimeout,
+-                sslCipherSuite);
++                sslCipherSuite,
++                sslCompatibility);
+         }
+         else
+ #endif
+@@ -850,6 +853,7 @@ MessageLoader::_useProcessLocale = false
+                 (const char*)sslCertificateFilePath.getCString());
+         printf("\tsslCipherSuite %s\n",
+             (const char*)sslCipherSuite.getCString());
++        printf("\tsslBackwardCompatibility %d\n",sslCompatibility);
+         printf("\tconsumerDir %s\n", (const char*)consumerDir.getCString());
+         printf("\tconsumerConfigDir %s\n",
+                 (const char*)consumerConfigDir.getCString());
+diff -up pegasus/src/Pegasus/General/SSLContextManager.cpp.orig pegasus/src/Pegasus/General/SSLContextManager.cpp
+--- pegasus/src/Pegasus/General/SSLContextManager.cpp.orig	2011-08-09 09:32:50.000000000 +0200
++++ pegasus/src/Pegasus/General/SSLContextManager.cpp	2015-11-05 13:45:02.058662046 +0100
+@@ -94,7 +94,8 @@ SSLContextManager::~SSLContextManager()
+ void SSLContextManager::createSSLContext(
+     const String& trustStore, const String& certPath, const String& keyPath,
+     const String& crlStore, Boolean callback, const String& randFile,
+-    const String& cipherSuite)
++    const String& cipherSuite,
++    const Boolean& sslCompatibility)
+ {
+     PEG_METHOD_ENTER(TRC_SSL, "SSLContextManager::createSSLContext()");
+ 
+@@ -111,17 +112,17 @@ void SSLContextManager::createSSLContext
+             _sslContext = new SSLContext(trustStore, certPath,
+                 keyPath, crlStore,
+                 (SSLCertificateVerifyFunction*)verifyClientOptionalCallback,
+-                randFile, cipherSuite);
++                randFile, cipherSuite, sslCompatibility);
+         }
+         else if ( trustStore != String::EMPTY )
+         {
+             _sslContext = new SSLContext(trustStore, certPath,
+-                keyPath, crlStore, 0, randFile, cipherSuite);
++                keyPath, crlStore, 0, randFile, cipherSuite, sslCompatibility);
+         }
+         else
+         {
+             _sslContext = new SSLContext(String::EMPTY, certPath,
+-                keyPath, crlStore, 0, randFile, cipherSuite);
++                keyPath, crlStore, 0, randFile, cipherSuite, sslCompatibility);
+         }
+     }
+ 
+diff -up pegasus/src/Pegasus/General/SSLContextManager.h.orig pegasus/src/Pegasus/General/SSLContextManager.h
+--- pegasus/src/Pegasus/General/SSLContextManager.h.orig	2011-08-09 09:32:50.000000000 +0200
++++ pegasus/src/Pegasus/General/SSLContextManager.h	2015-11-05 13:45:02.059662050 +0100
+@@ -62,7 +62,8 @@ public:
+         const String& crlStore,
+         Boolean callback,
+         const String& randFile,
+-        const String& cipherSuite);
++        const String& cipherSuite,
++        const Boolean& sslCompatibility);
+ 
+     /**
+         Reload the trust store used by either the CIM Server or
+diff -up pegasus/src/Pegasus/Server/CIMServer.cpp.orig pegasus/src/Pegasus/Server/CIMServer.cpp
+--- pegasus/src/Pegasus/Server/CIMServer.cpp.orig	2012-07-03 13:53:25.000000000 +0200
++++ pegasus/src/Pegasus/Server/CIMServer.cpp	2015-11-05 13:45:02.059662050 +0100
+@@ -916,6 +916,8 @@ SSLContext* CIMServer::_getSSLContext()
+     static const String PROPERTY_NAME__HTTP_ENABLED =
+         "enableHttpConnection";
+     static const String PROPERTY_NAME__SSL_CIPHER_SUITE = "sslCipherSuite";
++    static const String PROPERTY_NAME__SSL_COMPATIBILITY =
++        "sslBackwardCompatibility";
+ 
+     String verifyClient;
+     String trustStore;
+@@ -1095,6 +1097,10 @@ SSLContext* CIMServer::_getSSLContext()
+     PEG_TRACE((TRC_SERVER, Tracer::LEVEL4, "Cipher suite is %s", 
+         (const char*)cipherSuite.getCString())); 
+ 
++    Boolean sslCompatibility = ConfigManager::parseBooleanValue(
++        configManager->getCurrentValue(
++        PROPERTY_NAME__SSL_COMPATIBILITY));
++
+     //
+     // Create the SSLContext defined by the configuration properties
+     //
+@@ -1105,7 +1111,7 @@ SSLContext* CIMServer::_getSSLContext()
+ 
+         _sslContextMgr->createSSLContext(
+             trustStore, certPath, keyPath, crlStore, false, randFile,
+-            cipherSuite);
++            cipherSuite, sslCompatibility);
+     }
+     else if (String::equal(verifyClient, "optional"))
+     {
+@@ -1114,7 +1120,7 @@ SSLContext* CIMServer::_getSSLContext()
+ 
+         _sslContextMgr->createSSLContext(
+             trustStore, certPath, keyPath, crlStore, true, randFile,
+-            cipherSuite);
++            cipherSuite, sslCompatibility);
+     }
+     else if (String::equal(verifyClient, "disabled") ||
+              verifyClient == String::EMPTY)
+@@ -1124,7 +1130,7 @@ SSLContext* CIMServer::_getSSLContext()
+ 
+         _sslContextMgr->createSSLContext(
+             String::EMPTY, certPath, keyPath, crlStore, false, randFile,
+-            cipherSuite);
++            cipherSuite, sslCompatibility);
+     }
+     sslContext = _sslContextMgr->getSSLContext();
+ 
