@@ -1,0 +1,14 @@
+diff -up pegasus/rpm/tog-pegasus.rc.orig pegasus/rpm/tog-pegasus.rc
+--- pegasus/rpm/tog-pegasus.rc.orig	2016-03-22 16:55:55.717528308 +0100
++++ pegasus/rpm/tog-pegasus.rc	2016-03-29 09:31:46.305676524 +0200
+@@ -11,8 +11,8 @@
+ # Required-Start: $syslog $network
+ # Should-Start: $time
+ # Required-Stop: $syslog
+-# Default-Start:  3 5
+-# Default-Stop: 0 1 2 6
++# Default-Start:
++# Default-Stop:
+ # Description: init script for Pegasus CIMServer
+ ### END INIT INFO
+ 

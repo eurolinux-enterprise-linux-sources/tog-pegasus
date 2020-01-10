@@ -38,7 +38,7 @@
 %define cimsrvr_uid	134
 
 Version: 		%{major_ver}.0
-Release: 		5%{?dist}
+Release: 		6%{?dist}
 Epoch:   		2
 #
 Summary:   		OpenPegasus WBEM Services for Linux
@@ -95,6 +95,8 @@ Patch17:		pegasus-2.10.0-dont-strip.patch
 Patch18:		pegasus-2.11.0-new-build-options.patch
 # 19: Backported sslBackwardCompatibility option
 Patch19:                pegasus-2.12.0-ssl-backwarkd-compatibility.patch
+# 20: Service has to be enabled by administrator, not by default, bz#1277655
+Patch20:                pegasus-2.12.0-service-off-by-default.patch
 #
 Conflicts: 		openwbem
 Provides: 		tog-pegasus-cimserver
@@ -213,6 +215,7 @@ rm -rf pegasus/
 %patch17 -p1 -b .dont-strip
 %patch18 -p1 -b .new-build-options
 %patch19 -p1 -b .ssl-backwarkd-compatibility
+%patch20 -p1 -b .service-off-by-default
 find . -name 'CVS' -exec /bin/rm -rf '{}' ';' >/dev/null 2>&1 ||:;
 
 %build
@@ -581,6 +584,10 @@ fi
 :;
 
 %changelog
+* Tue Oct 11 2016 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-6
+- Turn the service off by default
+  Resolves: #1277655
+
 * Mon Apr 11 2016 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.0-5
 - Add missing useradd/groupadd dependency to tog-pegasus-libs
   Resolves: #1313794
