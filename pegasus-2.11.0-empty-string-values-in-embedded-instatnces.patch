@@ -1,0 +1,71 @@
+Index: src/Pegasus/Common/SCMO.cpp
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Pegasus/Common/SCMO.cpp,v
+retrieving revision 1.14
+diff -u -r1.14 SCMO.cpp
+--- src/Pegasus/Common/SCMO.cpp	25 Jan 2011 11:24:25 -0000	1.14
++++ src/Pegasus/Common/SCMO.cpp	23 Aug 2011 06:15:01 -0000
+@@ -3726,9 +3726,13 @@
+ 
+     case CIMTYPE_STRING:
+         {
+-            _setString(*((String*)((void*)&u)),
+-                       scmoUnion->stringValue,
+-                       pmem );
++            CString cstr = ((String*)((void*)&u))->getCString();
++            const char *cptr = (const char*)cstr;
++            _setBinary(
++                cptr,
++                strlen(cptr) + 1,
++                scmoUnion->stringValue,
++                pmem );
+             break;
+         }
+ 
+Index: src/Providers/TestProviders/CMPI/TestMethod/cmpiTestMethodProvider.c
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Providers/TestProviders/CMPI/TestMethod/cmpiTestMethodProvider.c,v
+retrieving revision 1.47
+diff -u -r1.47 cmpiTestMethodProvider.c
+--- src/Providers/TestProviders/CMPI/TestMethod/cmpiTestMethodProvider.c	27 Jul 2011 04:04:10 -0000	1.47
++++ src/Providers/TestProviders/CMPI/TestMethod/cmpiTestMethodProvider.c	23 Aug 2011 06:15:01 -0000
+@@ -398,6 +398,8 @@
+   CMPIObjectPath *temp_objPath = NULL;
+   CMPIString *objName = NULL;
+   CMPIInstance *inst = NULL;
++  CMPIString *str;
++  CMPIValue v;
+ 
+   PROV_LOG("Calling CMNewObjectPath for %s", _ClassName );
+   objPath  = CMNewObjectPath (_broker, _Namespace, "TestCMPI_Instance", &rc);
+@@ -408,6 +410,10 @@
+   inst = CMNewInstance(_broker, objPath, &rc);
+   PROV_LOG ("---- (rc:%s)", strCMPIStatus (rc));
+ 
++  str = CMNewString (_broker, "", 0);
++  v.string = str;
++  CMSetProperty(inst, "s", &v, CMPI_string);
++
+   // Get the object path
+   PROV_LOG("Calling CMGetObjectPath");
+   temp_objPath = CMGetObjectPath(inst, &rc);
+@@ -3274,11 +3280,19 @@
+     else if(strncmp("processEmbeddedInstance", methodName,
+       strlen ("processEmbeddedInstance"))== 0)
+     {
++        CMPIData d;
++
+         PROV_LOG("++++ Creating instance for processEmbeddedInstance");
+         instance = _createInstance();
+         PROV_LOG("++++ Getting inputInstance arg");
+         data = CMGetArg(in, "inputInstance", &rc);
+         PROV_LOG("++++ (%s)", strCMPIStatus (rc));
++        
++        d  = CMGetProperty(data.value.inst, "s", &rc);
++        if (rc.rc == CMPI_RC_OK && d.state == CMPI_nullValue)
++        {
++           PROV_LOG("++++ Error, Null value for empty string");
++        }
+ 
+         PROV_LOG("++++ Cloning inputInstance arg");
+         paramInst = data.value.inst->ft->clone(
