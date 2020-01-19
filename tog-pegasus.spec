@@ -8,7 +8,7 @@
 
 Name:           tog-pegasus
 Version:        %{major_ver}.1
-Release:        5%{?dist}
+Release:        7%{?dist}
 Epoch:          2
 Summary:        OpenPegasus WBEM Services for Linux
 
@@ -96,6 +96,8 @@ Patch41:        pegasus-2.14.1-testid.patch
 Patch42:        pegasus-2.14.1-cimconfig-manpage-formatting.patch
 # 43: adds httpSessionTimeout description into cimconfig man page
 Patch43:        pegasus-2.14.1-cimconfig-manpage-httpSessionTimeout.patch
+# 44: add missing ssl.h include
+Patch44:        pegasus-2.14.1-ssl-include.patch
 
 
 BuildRequires:  procps, libstdc++, pam-devel
@@ -108,6 +110,7 @@ Requires:       openssl
 Requires:       ca-certificates
 Provides:       cim-server = 1
 Requires(post): /sbin/ldconfig
+Requires(post): /sbin/restorecon
 
 %description
 OpenPegasus WBEM Services for Linux enables management solutions that deliver
@@ -244,6 +247,7 @@ yes | mak/CreateDmtfSchema 238 %{SOURCE9} cim_schema_2.38.0
 %patch41 -p1 -b .testid
 %patch42 -p1 -b .cimconfig-manpage-formatting
 %patch43 -p1 -b .cimconfig-manpage-httpSessionTimeout
+%patch44 -p1 -b .ssl-include
 
 
 %build
@@ -372,29 +376,35 @@ rm $RPM_BUILD_ROOT/usr/share/Pegasus/test/testtracer4.trace.0
 %dir /etc/Pegasus
 %dir /etc/pki/Pegasus
 %{_tmpfilesdir}/tog-pegasus.conf
+%defattr(0640, root, pegasus, 1750)
 %ghost /var/run/tog-pegasus
-%ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver.pid
-%ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver_start.lock
-%ghost %attr(1640,root,pegasus) /var/run/tog-pegasus/cimxml.socket
+%ghost %attr(0600, root, root) /var/run/tog-pegasus/cimserver.pid
+%ghost %attr(0600, root, root) /var/run/tog-pegasus/cimserver_start.lock
+%ghost %attr(0777 ,root, root) /var/run/tog-pegasus/cimxml.socket
 %attr(0644, root, pegasus) %{_unitdir}/tog-pegasus.service
 %defattr(0640, root, pegasus, 0750)
-%ghost %attr(0640, root, pegasus) %config(noreplace) /etc/Pegasus/cimserver_current.conf
-%ghost %config(noreplace) /etc/Pegasus/cimserver_planned.conf
+%ghost %attr(0644, root, root) %config(noreplace) /etc/Pegasus/cimserver_current.conf
+%ghost %attr(0644, root, root) %config(noreplace) /etc/Pegasus/cimserver_planned.conf
 %config(noreplace) /etc/Pegasus/access.conf
 %config(noreplace) /etc/pam.d/wbem
+%defattr(0444, root, root)
 %ghost /etc/pki/Pegasus/client.pem
 %ghost /etc/pki/Pegasus/server.pem
+%defattr(0400, root, root)
 %ghost /etc/pki/Pegasus/file.pem
+%defattr(0644, root, root)
 %ghost /etc/pki/Pegasus/ca.crt
 %ghost /etc/pki/Pegasus/ca.srl
 %ghost /etc/pki/Pegasus/client.srl
+%defattr(0400, root, root)
 %ghost /etc/Pegasus/ssl-ca.cnf
 %ghost /etc/Pegasus/ssl-service.cnf
+%defattr(0644, root, root)
 %ghost /etc/pki/ca-trust/source/anchors/localhost-pegasus.pem
 %ghost %attr(0640, root, pegasus) /etc/pki/Pegasus/cimserver_trust
 %ghost %attr(0640, root, pegasus) /etc/pki/Pegasus/indication_trust
 %dir %attr(0640, root, pegasus) /etc/pki/Pegasus/crl
-%ghost %verify(not md5 size mtime) /var/lib/Pegasus/log/install.log
+%ghost %attr(0644, root, root) %verify(not md5 size mtime) /var/lib/Pegasus/log/install.log
 %ghost %attr(0640, root, pegasus) %verify(not md5 size mtime) /var/lib/Pegasus/cache/trace/cimserver.trc
 %defattr(0755, root, pegasus, 0755)
 /usr/sbin/*
@@ -554,6 +564,14 @@ fi
 
 
 %changelog
+* Wed Aug 01 2018 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-7
+- Review and fix %%files section because of failing rpm -V
+  Related: #1520490
+
+* Mon Jun 18 2018 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-6
+- Require restorecon for postinstall scriptlet
+  Resolves: #1520490
+
 * Mon Jun 05 2017 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-5
 - Take care of already existing certificates, CRL and OpenSSL truststore
   Related: #1308809
