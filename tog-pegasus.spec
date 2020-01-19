@@ -8,7 +8,7 @@
 
 Name:           tog-pegasus
 Version:        %{major_ver}.1
-Release:        10%{?dist}
+Release:        16%{?dist}
 Epoch:          2
 Summary:        OpenPegasus WBEM Services for Linux
 
@@ -34,6 +34,11 @@ Source7:        cimprovagt-wrapper.sh
 Source8:        cmpiOSBase_OperatingSystemProvider-cimprovagt.example
 #  9: DMTF CIM schema
 Source9:        cim_schema_2.33.0Experimental-MOFs.zip
+# 10: Fedora/RHEL script for adding self-signed certificates to the local CA
+#     trust store
+Source10:       generate-certs
+# 11: Add a systemd snippet to create the self-signed certificates
+Source11:       genssl.conf
 
 #  1: http://cvs.rdg.opengroup.org/bugzilla/show_bug.cgi?id=5011
 #     Removing insecure -rpath
@@ -90,16 +95,24 @@ Patch29:        pegasus-2.12.1-interop.patch
 Patch30:        pegasus-2.13.0-PG_ComputerSystem.CreationClassName.patch
 # 31: Add Aarch64 support, http://bugzilla.openpegasus.org/show_bug.cgi?id=9663
 Patch31:        pegasus-2.12.1-aarch64.patch
+# 32: bz#1049313, allow unprivileged users to subscribe to indications by default
+Patch32:        pegasus-2.13.0-enable-subscriptions-for-nonprivileged-users.patch
+# 33: bz#1038013, fixes wrong EmbeddedInstances from CIMOM callback
+Patch33:        pegasus-2.12.1-wrong-embedded-instances-from-cimom-callback.patch
+# 34: bz#1041555, generates SSL certificates with x509v3 extensions
+Patch34:        pegasus-2.13.0-SSLGeneration.patch
 
 
-BuildRequires:  bash, sed, grep, coreutils, procps, gcc, gcc-c++
-BuildRequires:  libstdc++, make, pam-devel
+BuildRequires:  procps, libstdc++, pam-devel
 BuildRequires:  openssl, openssl-devel
 BuildRequires:  net-snmp-devel, openslp-devel
 BuildRequires:  systemd-units
 Requires:       net-snmp-libs
+Requires:       openssl
+Requires:       ca-certificates
 Requires:       %{name}-libs = %{epoch}:%{version}-%{release}
 Provides:       cim-server = 1
+Requires(post): /sbin/ldconfig
 
 %description
 OpenPegasus WBEM Services for Linux enables management solutions that deliver
@@ -230,6 +243,9 @@ yes | mak/CreateDmtfSchema 233 %{SOURCE9} cim_schema_2.33.0
 %patch29 -p1 -b .interop
 %patch30 -p0 -b .PG_ComputerSystem.CreationClassName
 %patch31 -p1 -b .aarch64
+%patch32 -p1 -b .enable-subscriptions-for-nonprivileged-users
+%patch33 -p1 -b .wrong-embedded-instances-from-cimom-callback
+%patch34 -p1 -b .genssl
 
 
 %build
@@ -288,6 +304,10 @@ make -f $PEGASUS_ROOT/Makefile.Release stage \
     install -p -D -m 644 %{SOURCE4} $RPM_BUILD_ROOT/%{_sysconfdir}/tmpfiles.d/tog-pegasus.conf
 %endif
 
+# Install script to generate SSL certificates at startup
+mkdir -p $RPM_BUILD_ROOT/usr/share/Pegasus/scripts
+install -p -m 755 %{SOURCE10} $RPM_BUILD_ROOT/usr/share/Pegasus/scripts/generate-certs
+
 # remove SysV initscript, install .service file
 rm -f $RPM_BUILD_ROOT/etc/init.d/tog-pegasus
 mkdir -p $RPM_BUILD_ROOT%{_unitdir}
@@ -305,6 +325,9 @@ mkdir -p $RPM_BUILD_ROOT/%{_libexecdir}/pegasus
 mv $RPM_BUILD_ROOT/%{_sbindir}/cimprovagt $RPM_BUILD_ROOT/%{_libexecdir}/pegasus
 install -p -m 0755 %{SOURCE7} $RPM_BUILD_ROOT/%{_sbindir}/cimprovagt
 
+# Install systemd drop directory for generating SSL certificates
+mkdir -p $RPM_BUILD_ROOT/%{_unitdir}/tog-pegasus.service.d/
+install -p -m 0644 %{SOURCE11} $RPM_BUILD_ROOT/%{_unitdir}/tog-pegasus.service.d/
 
 %check
 # run unit tests
@@ -335,6 +358,8 @@ make prestarttests
 %ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver_start.lock
 %ghost %attr(1640,root,pegasus) /var/run/tog-pegasus/cimxml.socket
 %{_unitdir}/tog-pegasus.service
+%dir %{_unitdir}/tog-pegasus.service.d/
+%config(noreplace) %{_unitdir}/tog-pegasus.service.d/genssl.conf
 %defattr(0640, root, pegasus, 0750)
 %ghost %attr(0640, root, pegasus) %config(noreplace) /etc/Pegasus/cimserver_current.conf
 %ghost %config(noreplace) /etc/Pegasus/cimserver_planned.conf
@@ -344,6 +369,12 @@ make prestarttests
 %ghost /etc/Pegasus/client.pem
 %ghost /etc/Pegasus/server.pem
 %ghost /etc/Pegasus/file.pem
+%ghost /etc/Pegasus/ca.crt
+%ghost /etc/Pegasus/ca.srl
+%ghost /etc/Pegasus/client.srl
+%ghost /etc/Pegasus/ssl-ca.cnf
+%ghost /etc/Pegasus/ssl-service.cnf
+%ghost /etc/pki/ca-trust/source/anchors/localhost-pegasus.pem
 %ghost %attr(0640, root, pegasus) /etc/Pegasus/cimserver_trust
 %ghost %attr(0640, root, pegasus) /etc/Pegasus/indication_trust
 %ghost %attr(0640, root, pegasus) /etc/Pegasus/crl
@@ -406,15 +437,6 @@ restorecon /var/run/tog-pegasus
 %systemd_post tog-pegasus.service
 if [ $1 -ge 1 ]; then
    echo `date` >>  /var/lib/Pegasus/log/install.log 2>&1 || :;
-   if [ $1 -eq 1 ] ; then
-      # Initial installation
-      if [ ! -e /etc/Pegasus/ssl.cnf ] || [ ! -e /etc/Pegasus/server.pem ] ||                                                                                                                          
-         [ ! -e /etc/Pegasus/file.pem ]  || [ ! -e /etc/Pegasus/client.pem ]; then
-         if [ -x /usr/share/Pegasus/scripts/genOpenPegasusSSLCerts ]; then
-            /usr/share/Pegasus/scripts/genOpenPegasusSSLCerts
-         fi;
-      fi;
-   fi
    if [ $1 -gt 1 ]; then
       if [ -d /var/lib/Pegasus/prev_repository ]; then
       #  The user's old repository was moved to /var/lib/Pegasus/prev_repository, which 
@@ -496,6 +518,34 @@ fi
 
 
 %changelog
+* Fri Mar 07 2014 Tomas Smetana <tsmetana@redhat.com> - 2:2.12.1-16
+- Wait for the slpd.service in the systemd unit file
+  Resolves: #1072936
+
+* Thu Mar 06 2014 Stephen Gallagher <sgallagh@redhat.com> - 2:2.12.1-15
+- Generate SSL certificates with x509v3 and CA:FALSE
+- Automatically import self-signed certificates into local trust-store
+- Move SSL certificate generation into the systemd service file
+- Resolves: #1041555
+
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 2:2.12.1-14
+- Mass rebuild 2014-01-24
+
+* Wed Jan 22 2014 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.1-13
+- Fix Regression in pegasus breaks providers
+  Resolves: #1054849
+
+* Wed Jan 08 2014 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.1-12
+- Allow unprivileged users to subscribe to indications
+  Resolves: #1049313
+- Remove packages which are part of the minimum build environment from BR 
+  Resolves: #1049651
+- Fix Pegasus malforms EmbeddedInstances in upcalls
+  Resolves: #1038013
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 2:2.12.1-11
+- Mass rebuild 2013-12-27
+
 * Thu Oct 31 2013 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.1-10
 - Add initial 64-bit ARM (Aarch64) support
   Resolves: #1023799

@@ -1,6 +1,6 @@
 [Unit]
 Description=OpenPegasus CIM Server
-After=syslog.target
+After=syslog.target slpd.service
 
 [Service]
 Type=forking
