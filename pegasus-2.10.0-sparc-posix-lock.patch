@@ -1,0 +1,20 @@
+--- pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.orig	2011-03-30 15:59:54.000000000 -0500
++++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h	2011-03-30 16:00:52.000000000 -0500
+@@ -90,4 +90,7 @@
+ # define PEGASUS_HAS_GETIFADDRS
+ #endif
+ 
++/* use POSIX read-write locks on this platform */
++#define PEGASUS_USE_POSIX_RWLOCK
++
+ #endif /* Pegasus_Platform_LINUX_SPARCV9_GNU_h */
+--- pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.orig	2011-03-30 15:59:30.000000000 -0500
++++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h	2011-03-30 16:01:05.000000000 -0500
+@@ -90,4 +90,7 @@
+ # define PEGASUS_HAS_GETIFADDRS
+ #endif
+ 
++/* use POSIX read-write locks on this platform */
++#define PEGASUS_USE_POSIX_RWLOCK
++
+ #endif /* Pegasus_Platform_LINUX_SPARC64_GNU_h */

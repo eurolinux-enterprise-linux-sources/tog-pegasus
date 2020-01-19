@@ -1,0 +1,29 @@
+diff -up pegasus/src/Pegasus/ProviderManager2/CMPI/CMPISCMOUtilities.cpp.test pegasus/src/Pegasus/ProviderManager2/CMPI/CMPISCMOUtilities.cpp
+--- pegasus/src/Pegasus/ProviderManager2/CMPI/CMPISCMOUtilities.cpp.test	2012-12-03 16:48:34.469370334 +0100
++++ pegasus/src/Pegasus/ProviderManager2/CMPI/CMPISCMOUtilities.cpp	2012-12-03 16:47:41.000000000 +0100
+@@ -358,12 +358,6 @@ CMPIrc CMPISCMOUtilities::scmoValue2CMPI
+     data->value.uint64 = 0;
+     data->state = CMPI_goodValue;
+ 
+-    //Check for NULL CIMValue
+-    if( scmoValue == 0 )
+-    {
+-        data->state = CMPI_nullValue;
+-        return CMPI_RC_OK;
+-    }
+ 
+     if (type & CMPI_ARRAY)
+     {
+@@ -398,6 +392,12 @@ CMPIrc CMPISCMOUtilities::scmoValue2CMPI
+     }
+     else
+     {
++        //Check for NULL CIMValue
++        if( scmoValue == 0 )
++        {
++            data->state = CMPI_nullValue;
++            return CMPI_RC_OK;
++        }
+         // Check for encpsulated type, which need special handling
+         if (type&CMPI_ENC)
+         {

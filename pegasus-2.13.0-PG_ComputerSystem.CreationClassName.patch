@@ -1,0 +1,175 @@
+Index: src/Providers/ManagedSystem/ComputerSystem/ComputerSystem.cpp
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Providers/ManagedSystem/ComputerSystem/ComputerSystem.cpp,v
+retrieving revision 1.16
+diff -u -b -w -r1.16 ComputerSystem.cpp
+--- src/Providers/ManagedSystem/ComputerSystem/ComputerSystem.cpp	16 Dec 2008 18:57:17 -0000	1.16
++++ src/Providers/ManagedSystem/ComputerSystem/ComputerSystem.cpp	16 Oct 2013 13:13:10 -0000
+@@ -27,12 +27,6 @@
+ //
+ //////////////////////////////////////////////////////////////////////////
+ //
+-// Author: Mike Brasher (mbrasher@bmc.com)
+-//
+-// Modified By: Rudy Schuet (rudy.schuet@compaq.com) 11/12/01
+-//              added nsk platform support
+-//              Sean Keenan Hewlett-Packard Company (sean.keenan@hp.com)
+-//
+ //%/////////////////////////////////////////////////////////////////////////////
+ 
+ #include "ComputerSystem.h"
+Index: src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProvider.cpp
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProvider.cpp,v
+retrieving revision 1.24
+diff -u -b -w -r1.24 ComputerSystemProvider.cpp
+--- src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProvider.cpp	2 Dec 2008 09:02:26 -0000	1.24
++++ src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProvider.cpp	16 Oct 2013 13:13:10 -0000
+@@ -37,9 +37,9 @@
+ // This provider is registered to support operations at
+ // several class levels:
+ //
+-//  CIM_ComputerSystem
+-//  CIM_UnitaryComputerSystem
+ //  <platform>_ComputerSustem
++//  CIM_UnitaryComputerSystem
++//  CIM_ComputerSystem
+ //
+ // Enumeration operations always return instances from the
+ // deepest class available.  All other
+@@ -95,17 +95,22 @@
+     String keyValue;
+ 
+     if (keys.size() != keyCount)
++    {
+         throw CIMInvalidParameterException("Wrong number of keys");
++    }
+ 
+     for (unsigned int ii = 0; ii < keys.size(); ii++)
+     {
+         keyName = keys[ii].getName();
+         keyValue = keys[ii].getValue();
+ 
++        //Put CLASS_EXTENDED_COMPUTER_SYSTEM in front CLASS_CIM_COMPUTER_SYSTEM
++        //to prefer CLASS_EXTENDED_COMPUTER_SYSTEM as class being served first
++        //followed by CLASS_CIM_UNITARY_COMPUTER_SYSTEM
+         if (keyName.equal(PROPERTY_CREATION_CLASS_NAME) &&
+-            (String::equalNoCase(keyValue,CLASS_CIM_COMPUTER_SYSTEM) ||
++            (String::equalNoCase(keyValue,CLASS_EXTENDED_COMPUTER_SYSTEM) ||
+              String::equalNoCase(keyValue,CLASS_CIM_UNITARY_COMPUTER_SYSTEM) ||
+-             String::equalNoCase(keyValue,CLASS_EXTENDED_COMPUTER_SYSTEM) ||
++             String::equalNoCase(keyValue,CLASS_CIM_COMPUTER_SYSTEM) ||
+              String::equalNoCase(keyValue,String::EMPTY)))
+         {
+             keyCount--;
+@@ -189,7 +194,7 @@
+ 
+         keys.append(CIMKeyBinding(
+             PROPERTY_CREATION_CLASS_NAME,
+-            CLASS_CIM_COMPUTER_SYSTEM,
++            CLASS_EXTENDED_COMPUTER_SYSTEM,
+             CIMKeyBinding::STRING));
+         keys.append(CIMKeyBinding(
+             PROPERTY_NAME,
+@@ -250,9 +255,9 @@
+ 
+ void ComputerSystemProvider::_checkClass(CIMName& className)
+ {
+-    if (!className.equal(CLASS_CIM_COMPUTER_SYSTEM) &&
++    if (!className.equal(CLASS_EXTENDED_COMPUTER_SYSTEM) &&
+         !className.equal(CLASS_CIM_UNITARY_COMPUTER_SYSTEM) &&
+-        !className.equal(CLASS_EXTENDED_COMPUTER_SYSTEM))
++        !className.equal(CLASS_CIM_COMPUTER_SYSTEM))
+     {
+         throw CIMNotSupportedException(String::EMPTY);
+     }
+Index: src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProviderMain.cpp
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProviderMain.cpp,v
+retrieving revision 1.14
+diff -u -b -w -r1.14 ComputerSystemProviderMain.cpp
+--- src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProviderMain.cpp	16 Dec 2008 18:57:17 -0000	1.14
++++ src/Providers/ManagedSystem/ComputerSystem/ComputerSystemProviderMain.cpp	16 Oct 2013 13:13:10 -0000
+@@ -27,14 +27,6 @@
+ //
+ //////////////////////////////////////////////////////////////////////////
+ //
+-// Author: Christopher Neufeld <neufeld@linuxcare.com>
+-//         David Kennedy       <dkennedy@linuxcare.com>
+-//
+-// Modified By: David Kennedy       <dkennedy@linuxcare.com>
+-//              Christopher Neufeld <neufeld@linuxcare.com>
+-//              Al Stone            <ahs3@fc.hp.com>
+-//              Mike Glantz         <michael_glantz@hp.com>
+-//
+ //%////////////////////////////////////////////////////////////////////////////
+ 
+ //
+Index: src/Providers/ManagedSystem/ComputerSystem/ComputerSystem_Linux.cpp
+===================================================================
+RCS file: /cvs/MSB/pegasus/src/Providers/ManagedSystem/ComputerSystem/ComputerSystem_Linux.cpp,v
+retrieving revision 1.24
+diff -u -b -w -r1.24 ComputerSystem_Linux.cpp
+--- src/Providers/ManagedSystem/ComputerSystem/ComputerSystem_Linux.cpp	16 Dec 2008 18:57:17 -0000	1.24
++++ src/Providers/ManagedSystem/ComputerSystem/ComputerSystem_Linux.cpp	16 Oct 2013 13:13:10 -0000
+@@ -43,8 +43,6 @@
+ PEGASUS_USING_STD;
+ PEGASUS_USING_PEGASUS;
+ 
+-static String _hostName;
+-
+ ComputerSystem::ComputerSystem()
+ {
+ }
+@@ -304,48 +302,14 @@
+ }
+ 
+ /**
+- * initialize primarily functions to initialize static global variables
+- * that will not be changed frequently. These variables are currently
+- * _hostName.
+- *
++ * This is empty as we get the hostname through
++ * System class
+  */
+ void ComputerSystem::initialize()
+ {
+-    char    hostName[PEGASUS_MAXHOSTNAMELEN + 1];
+-    struct  hostent *hostEntry;
+-
+-    if (gethostname(hostName, sizeof(hostName)) != 0)
+-    {
+-        _hostName.assign("Not initialized");
+-    }
+-    hostName[sizeof(hostName)-1] = 0;
+-
+-    // Now get the official hostname.  If this call fails then return
+-    // the value from gethostname().
+-
+-    char hostEntryBuffer[8192];
+-    struct hostent hostEntryStruct;
+-    int hostEntryErrno;
+-
+-    gethostbyname_r(
+-        hostName,
+-        &hostEntryStruct,
+-        hostEntryBuffer,
+-        sizeof(hostEntryBuffer),
+-        &hostEntry,
+-        &hostEntryErrno);
+-
+-    if (hostEntry)
+-    {
+-        _hostName.assign(hostEntry->h_name);
+-    }
+-    else
+-    {
+-        _hostName.assign(hostName);
+-    }
+ }
+ 
+ String ComputerSystem::getHostName()
+ {
+-    return _hostName;
++    return System::getFullyQualifiedHostName();
+ }

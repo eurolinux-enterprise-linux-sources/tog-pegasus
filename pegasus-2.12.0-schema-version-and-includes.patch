@@ -1,0 +1,88 @@
+diff -up pegasus/env_var_Linux.status.orig pegasus/env_var_Linux.status
+--- pegasus/env_var_Linux.status.orig	2013-01-16 13:03:12.592203615 +0100
++++ pegasus/env_var_Linux.status	2013-01-16 13:03:12.614203736 +0100
+@@ -30,7 +30,7 @@ PEGASUS_PAM_AUTHENTICATION=true
+ PEGASUS_USE_RELEASE_CONFIG_OPTIONS=true
+ PEGASUS_USE_RELEASE_DIRS=true
+ PEGASUS_USE_SYSLOGS=true
+-PEGASUS_CIM_SCHEMA=CIM231
++PEGASUS_CIM_SCHEMA=CIM233
+ PEGASUS_USE_NET_SNMP=true
+ PEGASUS_ENABLE_PRIVILEGE_SEPARATION=false
+ 
+diff -up pegasus/Schemas/CIM233/CIM_Core.mof.orig pegasus/Schemas/CIM233/CIM_Core.mof
+--- pegasus/Schemas/CIM233/CIM_Core.mof.orig	2013-01-16 13:03:12.000000000 +0100
++++ pegasus/Schemas/CIM233/CIM_Core.mof	2013-01-15 09:44:51.000000000 +0100
+@@ -40,7 +40,9 @@
+  
+ #pragma include ("DMTF/qualifiers.mof")
+ #pragma include ("DMTF/qualifiers_optional.mof")
+- 
++
++#pragma include ("DMTF/Interop/CIM_Message.mof") 
++#pragma include ("DMTF/Interop/CIM_Error.mof") 
+ #pragma include ("DMTF/Core/CIM_ManagedElement.mof")
+ #pragma include ("DMTF/Core/CIM_ManagedSystemElement.mof")
+ #pragma include ("DMTF/Core/CIM_MethodParameters.mof")
+@@ -146,6 +148,7 @@
+ #pragma include ("DMTF/Core/CIM_SystemSetting.mof")
+ #pragma include ("DMTF/Core/CIM_SystemSettingContext.mof")
+ #pragma include ("DMTF/Core/CIM_SystemSpecificCollection.mof")
++#pragma include ("DMTF/System/CIM_VirtualSystemSettingData.mof")
+ #pragma include ("DMTF/Core/CIM_VirtualEthernetSwitchSettingData.mof")
+ #pragma include ("DMTF/Core/CIM_VirtualSystemManagementCapabilities.mof")
+ #pragma include ("DMTF/Core/CIM_VirtualSystemSnapshotCapabilities.mof")
+@@ -205,6 +208,8 @@
+ #pragma include ("DMTF/Core/CIM_TimeService.mof")
+ #pragma include ("DMTF/Core/CIM_ViewOnSystem.mof")
+ #pragma include ("DMTF/Core/CIM_AdminDomain.mof")
++#pragma include ("DMTF/Device/CIM_PowerAllocationSettingData.mof")
++#pragma include ("DMTF/Device/CIM_PowerManagementService.mof")
+ #pragma include ("DMTF/Core/CIM_AssociatedPowerManagementService.mof")
+ #pragma include ("DMTF/Core/CIM_BasedOn.mof")
+ #pragma include ("DMTF/Core/CIM_BasicExecutionService.mof")
+@@ -213,6 +218,7 @@
+ #pragma include ("DMTF/Core/CIM_DeviceSAPImplementation.mof")
+ #pragma include ("DMTF/Core/CIM_DeviceServiceImplementation.mof")
+ #pragma include ("DMTF/Core/CIM_DeviceStatistics.mof")
++#pragma include ("DMTF/System/CIM_ComputerSystem.mof")
+ #pragma include ("DMTF/Core/CIM_DomainMemberCS.mof")
+ #pragma include ("DMTF/Core/CIM_ExtentRedundancyComponent.mof")
+ #pragma include ("DMTF/Core/CIM_HostedAccessPoint.mof")
+diff -up pegasus/Schemas/CIM233/CIM_Event.mof.orig pegasus/Schemas/CIM233/CIM_Event.mof
+--- pegasus/Schemas/CIM233/CIM_Event.mof.orig	2013-01-16 13:03:12.000000000 +0100
++++ pegasus/Schemas/CIM233/CIM_Event.mof	2013-01-15 10:29:26.000000000 +0100
+@@ -73,5 +73,6 @@
+ #pragma include ("DMTF/Event/CIM_IPNetworkSecurityIndication.mof")
+ #pragma include ("DMTF/Event/CIM_IPPacketFilterIndication.mof")
+ #pragma include ("DMTF/Event/CIM_IndicationService.mof")
++#pragma include ("DMTF/System/CIM_Log.mof")
+ #pragma include ("DMTF/Event/CIM_LogOfIndication.mof")
+  
+diff -up pegasus/Schemas/CIM233/CIM_System.mof.orig pegasus/Schemas/CIM233/CIM_System.mof
+--- pegasus/Schemas/CIM233/CIM_System.mof.orig	2013-01-16 13:03:12.000000000 +0100
++++ pegasus/Schemas/CIM233/CIM_System.mof	2013-01-15 13:42:11.000000000 +0100
+@@ -79,6 +79,7 @@
+ #pragma include ("DMTF/System/CIM_FileImportCapabilities.mof")
+ #pragma include ("DMTF/System/CIM_FileSystemConfigurationCapabilities.mof")
+ #pragma include ("DMTF/System/CIM_FileSystemSettingData.mof")
++#pragma include ("DMTF/User/CIM_Privilege.mof")
+ #pragma include ("DMTF/System/CIM_ImportedFileShareSetting.mof")
+ #pragma include ("DMTF/System/CIM_ImportedShareRoot.mof")
+ #pragma include ("DMTF/System/CIM_LogEntry.mof")
+@@ -121,6 +122,7 @@
+ #pragma include ("DMTF/System/CIM_BatchJob.mof")
+ #pragma include ("DMTF/System/CIM_BatchSAP.mof")
+ #pragma include ("DMTF/System/CIM_BatchService.mof")
++#pragma include ("DMTF/User/CIM_Credential.mof")
+ #pragma include ("DMTF/System/CIM_BIOSService.mof")
+ #pragma include ("DMTF/System/CIM_BootConfigSetting.mof")
+ #pragma include ("DMTF/System/CIM_BootSAP.mof")
+@@ -141,6 +143,7 @@
+ #pragma include ("DMTF/System/CIM_ExportedFileShareCapabilities.mof")
+ #pragma include ("DMTF/System/CIM_FCHBADiagnosticTest.mof")
+ #pragma include ("DMTF/System/CIM_FileSystem.mof")
++#pragma include ("DMTF/Device/CIM_StorageSetting.mof")
+ #pragma include ("DMTF/System/CIM_FileSystemCapabilities.mof")
+ #pragma include ("DMTF/System/CIM_FileSystemConfigurationService.mof")
+ #pragma include ("DMTF/System/CIM_HelpService.mof")
