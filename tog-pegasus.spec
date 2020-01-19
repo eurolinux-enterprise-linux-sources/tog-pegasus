@@ -8,7 +8,7 @@
 
 Name:           tog-pegasus
 Version:        %{major_ver}.1
-Release:        3%{?dist}
+Release:        5%{?dist}
 Epoch:          2
 Summary:        OpenPegasus WBEM Services for Linux
 
@@ -86,6 +86,16 @@ Patch36:        pegasus-2.14.1-snmpv3-trap.patch
 Patch37:        pegasus-2.14.1-fix-setup-sdk.patch
 # 38: modify sslBackwardCompatibility to disable only SSLv3 (leaves TLSv1.0 and TLSv1.1 enabled)
 Patch38:        pegasus-2.14.1-ssl-backward-compatibility-modification.patch
+# 39: fixes build of sample CMPI providers on ppc64le
+Patch39:        pegasus-2.14.1-fix-setup-sdk-ppc64le.patch
+# 40: moves SSL certificates to /etc/pki/Pegasus
+Patch40:        pegasus-2.14.1-ssl-cert-path.patch
+# 41: remove TESTID environment variable which breaks automatic testing in Beaker
+Patch41:        pegasus-2.14.1-testid.patch
+# 42: fixes wrong formatting in cimconfig man page
+Patch42:        pegasus-2.14.1-cimconfig-manpage-formatting.patch
+# 43: adds httpSessionTimeout description into cimconfig man page
+Patch43:        pegasus-2.14.1-cimconfig-manpage-httpSessionTimeout.patch
 
 
 BuildRequires:  procps, libstdc++, pam-devel
@@ -179,7 +189,7 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 %global PEGASUS_ARCH_LIB %{_lib}
 %global OPENSSL_HOME /usr
 %global OPENSSL_BIN /usr/bin
-%global PEGASUS_PEM_DIR /etc/Pegasus
+%global PEGASUS_PEM_DIR /etc/pki/Pegasus
 %global PEGASUS_SSL_CERT_FILE server.pem
 %global PEGASUS_SSL_KEY_FILE file.pem
 %global PEGASUS_SSL_TRUSTSTORE client.pem
@@ -229,6 +239,11 @@ yes | mak/CreateDmtfSchema 238 %{SOURCE9} cim_schema_2.38.0
 %patch36 -p1 -b .snmpv3-trap
 %patch37 -p1 -b .fix-setup-sdk
 %patch38 -p1 -b .ssl-backward-compatibility-modification
+%patch39 -p1 -b .fix-setup-sdk-ppc64le
+%patch40 -p1 -b .ssl-cert-path
+%patch41 -p1 -b .testid
+%patch42 -p1 -b .cimconfig-manpage-formatting
+%patch43 -p1 -b .cimconfig-manpage-httpSessionTimeout
 
 
 %build
@@ -262,6 +277,9 @@ make %{?_smp_mflags} -f ${PEGASUS_ROOT}/Makefile.Release repository
 
 
 %install
+# Create directory for SSL certificates
+mkdir -p $RPM_BUILD_ROOT/etc/pki/Pegasus
+
 export PEGASUS_ROOT=%PEGASUS_RPM_ROOT
 export PEGASUS_HOME=%PEGASUS_RPM_HOME
 export PEGASUS_PLATFORM=%PEGASUS_HARDWARE_PLATFORM
@@ -288,6 +306,10 @@ install -p -D -m 644 %{SOURCE4} $RPM_BUILD_ROOT/%{_tmpfilesdir}/tog-pegasus.conf
 # Install script to generate SSL certificates at startup
 mkdir -p $RPM_BUILD_ROOT/usr/share/Pegasus/scripts
 install -p -m 755 %{SOURCE10} $RPM_BUILD_ROOT/usr/share/Pegasus/scripts/generate-certs
+# Remove unused ssl.cnf file
+rm -f $RPM_BUILD_ROOT/etc/Pegasus/ssl.cnf
+# Create certificate revocation list dir (see bz#1032046)
+mkdir -p $RPM_BUILD_ROOT/etc/pki/Pegasus/crl
 
 # remove SysV initscript, install .service file
 rm -f $RPM_BUILD_ROOT/etc/init.d/tog-pegasus
@@ -313,6 +335,8 @@ install -m 644 src/Pegasus/Common/Platform_LINUX_XSCALE_GNU.h $RPM_BUILD_ROOT/%{
 mkdir -p $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
 install -m 644 src/Pegasus/Listener/Linkage.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
 install -m 644 src/Pegasus/Listener/CIMListener.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
+install -m 644 src/Pegasus/Client/CIMEnumerationContext.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Client
+install -m 644 src/Pegasus/Common/UintArgs.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Common
 
 # Install snptrapd.conf used for net-snmp tests
 %if %{PEGASUS_BUILD_TEST_RPM}
@@ -346,6 +370,7 @@ rm $RPM_BUILD_ROOT/usr/share/Pegasus/test/testtracer4.trace.0
 %dir /var/lib/Pegasus/log
 %defattr(0640, root, pegasus, 0750)
 %dir /etc/Pegasus
+%dir /etc/pki/Pegasus
 %{_tmpfilesdir}/tog-pegasus.conf
 %ghost /var/run/tog-pegasus
 %ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver.pid
@@ -357,19 +382,18 @@ rm $RPM_BUILD_ROOT/usr/share/Pegasus/test/testtracer4.trace.0
 %ghost %config(noreplace) /etc/Pegasus/cimserver_planned.conf
 %config(noreplace) /etc/Pegasus/access.conf
 %config(noreplace) /etc/pam.d/wbem
-%ghost /etc/Pegasus/ssl.cnf
-%ghost /etc/Pegasus/client.pem
-%ghost /etc/Pegasus/server.pem
-%ghost /etc/Pegasus/file.pem
-%ghost /etc/Pegasus/ca.crt
-%ghost /etc/Pegasus/ca.srl
-%ghost /etc/Pegasus/client.srl
+%ghost /etc/pki/Pegasus/client.pem
+%ghost /etc/pki/Pegasus/server.pem
+%ghost /etc/pki/Pegasus/file.pem
+%ghost /etc/pki/Pegasus/ca.crt
+%ghost /etc/pki/Pegasus/ca.srl
+%ghost /etc/pki/Pegasus/client.srl
 %ghost /etc/Pegasus/ssl-ca.cnf
 %ghost /etc/Pegasus/ssl-service.cnf
 %ghost /etc/pki/ca-trust/source/anchors/localhost-pegasus.pem
-%ghost %attr(0640, root, pegasus) /etc/Pegasus/cimserver_trust
-%ghost %attr(0640, root, pegasus) /etc/Pegasus/indication_trust
-%ghost %attr(0640, root, pegasus) /etc/Pegasus/crl
+%ghost %attr(0640, root, pegasus) /etc/pki/Pegasus/cimserver_trust
+%ghost %attr(0640, root, pegasus) /etc/pki/Pegasus/indication_trust
+%dir %attr(0640, root, pegasus) /etc/pki/Pegasus/crl
 %ghost %verify(not md5 size mtime) /var/lib/Pegasus/log/install.log
 %ghost %attr(0640, root, pegasus) %verify(not md5 size mtime) /var/lib/Pegasus/cache/trace/cimserver.trc
 %defattr(0755, root, pegasus, 0755)
@@ -419,7 +443,7 @@ if [ $1 -gt 1 ]; then
         if [ -d /var/lib/Pegasus/prev_repository ]; then
            mv /var/lib/Pegasus/prev_repository /var/lib/Pegasus/prev_repository_`date '+%Y-%m-%d-%s.%N'`.rpmsave;
         fi;
-        mv /var/lib/Pegasus/repository /var/lib/Pegasus/prev_repository;
+        cp -r /var/lib/Pegasus/repository /var/lib/Pegasus/prev_repository;
    fi
 fi
 :;
@@ -432,6 +456,24 @@ restorecon /var/run/tog-pegasus
 if [ $1 -ge 1 ]; then
    echo `date` >>  /var/lib/Pegasus/log/install.log 2>&1 || :;
    if [ $1 -gt 1 ]; then
+      # Move existing certificates from /etc/Pegasus to /etc/pki/Pegasus to avoid
+      # automatic creation and use of new ones
+      if [ -f /etc/Pegasus/server.pem ] || [ -f /etc/Pegasus/file.pem ]  || [ -f /etc/Pegasus/client.pem ]; then
+         mv /etc/Pegasus/*.pem /etc/pki/Pegasus
+      fi;
+      # Move content of crl directory (Certificate Revocation List)
+      if [ -d /etc/Pegasus/crl ] && [ "$(ls -A /etc/Pegasus/crl)" ]; then
+         mv /etc/Pegasus/crl/* /etc/pki/Pegasus/crl
+      fi;
+      # Move OpenSSL truststore
+      # It could be either file...
+      if [ -f /etc/Pegasus/cimserver_trust ]; then
+         mv /etc/Pegasus/cimserver_trust /etc/pki/Pegasus
+      fi;
+      # ...or directory
+      if [ -d /etc/Pegasus/cimserver_trust ] && [ "$(ls -A /etc/Pegasus/cimserver_trust)" ]; then
+         mv /etc/Pegasus/cimserver_trust/* /etc/pki/Pegasus/cimserver_trust
+      fi;
       if [ -d /var/lib/Pegasus/prev_repository ]; then
       #  The user's old repository was moved to /var/lib/Pegasus/prev_repository, which 
       #  now must be upgraded to the new repository in /var/lib/Pegasus/repository:
@@ -512,6 +554,27 @@ fi
 
 
 %changelog
+* Mon Jun 05 2017 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-5
+- Take care of already existing certificates, CRL and OpenSSL truststore
+  Related: #1308809
+
+* Tue Feb 21 2017 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-4
+- Fix ppc64le SDK
+  Resolves: #1266235
+- Move SSL certificates to more convenient place, update related scripts
+  and README.RedHat.SSL
+  Resolves: #1308809
+- Change repository update to get rid of warning messages during cleanup
+  Resolves: #1257085
+- Remove TESTID environment variable which breaks automatic testing in Beaker
+  Resolves: #1266655
+- Add CIMEnumerationContext.h and UintArgs.h to -devel
+  Resolves: #1335873
+- Fix wrong formatting in cimconfig man page
+  Resolves: #1263895
+- Add missing description of httpSessionTimeout to cimconfig man page
+  Resolves: #1263894
+
 * Tue Sep 22 2015 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-3
 - Modify sslBackwardCompatibility=false to disable only SSLv3
   Resolves: #1264951

@@ -1,0 +1,22 @@
+diff -up pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig pegasus/rpm/manLinux/man8.Z/cimconfig.8
+--- pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig	2017-02-13 15:24:45.334223984 +0100
++++ pegasus/rpm/manLinux/man8.Z/cimconfig.8	2017-02-13 15:24:45.349223957 +0100
+@@ -211,7 +211,7 @@ configuration.
+ .PP 
+ .B fullyQualifiedHostName
+ .IP 
+-.BR Description: "  Can be used to override the local system supplied
++.BR Description: " Can be used to override the local system supplied
+ fully qualified hostname (with domain) the CIM Server is using to build objects.
+ If not set, querying this configuration option will report the system
+ supplied fully qualified hostname and behavior is not changed.
+@@ -220,7 +220,8 @@ value will force the server to assume th
+ name with domain. Setting this allows the administrator to set the name that
+ indication operations and the CIM_ObjectManager assume for SystemName returned
+ as instance and key properties.
+-.IP In common setups it is not recommended to explicitly set this value.
++.IP
++In common setups it is not recommended to explicitly set this value.
+ Some scenarios scenarios in which changing the default value makes sense include:
+ .IP
+ - The case where what the CIM Server shall return to clients for host name

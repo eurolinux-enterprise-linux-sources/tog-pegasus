@@ -1,0 +1,27 @@
+diff -up pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig pegasus/rpm/manLinux/man8.Z/cimconfig.8
+--- pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig	2017-02-21 10:39:02.000000000 +0100
++++ pegasus/rpm/manLinux/man8.Z/cimconfig.8	2017-02-21 10:39:29.268527496 +0100
+@@ -516,6 +516,23 @@ by the pegasus webserver.
+ .BR Dynamic: \0No
+ .PD
+ .PP
++.B httpSessionTimeout
++.IP
++.BR Description: " If set to a positive integer, this value specifies a HTTP session lifetime
++in seconds. After initial authentication using standard HTTP mechanisms (HTTP Basic or Negotiate
++authentication), the server generates a cookie and sends it back to the client, as described in
++RFC 6265. The client can then use the cookie in subsequent requests to skip the usual HTTP
++authentication. The cookie is valid only for period of time specified by this configuration option.
++If set to zero, session management is turned off and CIM server will not issue cookies.
++This option is available only when Pegasus was compiled with PEGASUS_ENABLE_SESSION_COOKIES set
++to 'true'.
++.PD 0
++.IP
++.BR "Default Value: " 0
++.IP
++.BR Dynamic: \0Yes
++.PD
++.PP
+ 
+ 
+ If both the 
