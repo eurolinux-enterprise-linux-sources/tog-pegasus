@@ -31,9 +31,6 @@
 
 #include <Pegasus/Common/AuditLogger.h>
 #include <Pegasus/Common/Constants.h>
-#include <Pegasus/Common/HTTPAcceptor.h>
-#include <Pegasus/Common/HTTPConnection.h>
-#include <Pegasus/Common/HTTPMessage.h>
 #include <Pegasus/Common/XmlWriter.h>
 #include <Pegasus/Common/Thread.h>
 #include <Pegasus/Common/MessageLoader.h>
@@ -41,10 +38,6 @@
 #include <Pegasus/Common/LanguageParser.h>
 #include <Pegasus/Config/ConfigManager.h>
 #include "HTTPAuthenticatorDelegator.h"
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-# include <Pegasus/Common/CIMKerberosSecurityAssociation.h>
-#endif
 
 #ifdef PEGASUS_ZOS_SECURITY
 // This include file will not be provided in the OpenGroup CVS for now.
@@ -64,7 +57,10 @@ static const String _HTTP_VERSION_1_0 = "HTTP/1.0";
 
 static const String _HTTP_METHOD_MPOST = "M-POST";
 static const String _HTTP_METHOD = "POST";
-
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+static const String _HTTP_METHOD_GET = "GET";
+static const String _HTTP_METHOD_HEAD = "HEAD";
+#endif /* #ifdef PEGASUS_ENABLE_PROTOCOL_WEB */
 static const char* _HTTP_HEADER_CIMEXPORT = "CIMExport";
 static const char* _HTTP_HEADER_CONNECTION = "Connection";
 static const char* _HTTP_HEADER_CIMOPERATION = "CIMOperation";
@@ -75,6 +71,8 @@ static const char* _HTTP_HEADER_PEGASUSAUTHORIZATION = "PegasusAuthorization";
 
 static const String _CONFIG_PARAM_ENABLEAUTHENTICATION = "enableAuthentication";
 
+static const char _COOKIE_NAME[] = "PEGASUS_SID";
+
 HTTPAuthenticatorDelegator::HTTPAuthenticatorDelegator(
     Uint32 cimOperationMessageQueueId,
     Uint32 cimExportMessageQueueId,
@@ -83,12 +81,19 @@ HTTPAuthenticatorDelegator::HTTPAuthenticatorDelegator(
       _cimOperationMessageQueueId(cimOperationMessageQueueId),
       _cimExportMessageQueueId(cimExportMessageQueueId),
       _wsmanOperationMessageQueueId(PEG_NOT_FOUND),
+      _rsOperationMessageQueueId(PEG_NOT_FOUND),
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+      _webOperationMessageQueueId(PEG_NOT_FOUND),
+#endif
       _repository(repository)
 {
     PEG_METHOD_ENTER(TRC_HTTP,
         "HTTPAuthenticatorDelegator::HTTPAuthenticatorDelegator");
 
     _authenticationManager.reset(new AuthenticationManager());
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    _sessions.reset(new HTTPSessionList());
+#endif
 
     PEG_METHOD_EXIT();
 }
@@ -129,30 +134,10 @@ void HTTPAuthenticatorDelegator::_sendResponse(
     PEG_METHOD_EXIT();
 }
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-void HTTPAuthenticatorDelegator::_sendSuccess(
-    Uint32 queueId,
-    const String& authResponse,
-    Boolean closeConnect)
-{
-    PEG_METHOD_ENTER(TRC_HTTP,
-        "HTTPAuthenticatorDelegator::_sendSuccess");
-
-    //
-    // build OK (200) response message
-    //
-
-    Buffer message;
-    XmlWriter::appendOKResponseHeader(message, authResponse);
-
-    _sendResponse(queueId, message,closeConnect);
-
-    PEG_METHOD_EXIT();
-}
-#endif
 
 void HTTPAuthenticatorDelegator::_sendChallenge(
     Uint32 queueId,
+    const String& errorDetail,
     const String& authResponse,
     Boolean closeConnect)
 {
@@ -164,7 +149,10 @@ void HTTPAuthenticatorDelegator::_sendChallenge(
     //
 
     Buffer message;
-    XmlWriter::appendUnauthorizedResponseHeader(message, authResponse);
+    XmlWriter::appendUnauthorizedResponseHeader(
+        message,
+        errorDetail,
+        authResponse);
 
     _sendResponse(queueId, message,closeConnect);
 
@@ -379,7 +367,6 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
     String methodName;
     String requestUri;
     String httpVersion;
-    HttpMethod httpMethod = HTTP_METHOD__POST;
 
     HTTPMessage::parseRequestLine(
         startLine, methodName, requestUri, httpVersion);
@@ -387,14 +374,31 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
     //
     //  Set HTTP method for the request
     //
+    HttpMethod httpMethod = HTTP_METHOD__POST;
     if (methodName == _HTTP_METHOD_MPOST)
     {
         httpMethod = HTTP_METHOD_M_POST;
     }
-
-    if (methodName != _HTTP_METHOD_MPOST && methodName != _HTTP_METHOD)
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    else if (methodName == _HTTP_METHOD_GET)
     {
-        // Only POST and M-POST are implemented by this server
+        httpMethod = HTTP_METHOD_GET;
+    }
+    else if (methodName == _HTTP_METHOD_HEAD)
+    {
+        httpMethod = HTTP_METHOD_HEAD;
+    }
+#endif
+
+    if (httpMethod != HTTP_METHOD__POST && httpMethod != HTTP_METHOD_M_POST
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+        && httpMethod != HTTP_METHOD_GET && httpMethod != HTTP_METHOD_HEAD
+#endif
+       )
+    {
+        //
+        //  M-POST method is not valid with version 1.0
+        //
         _sendHttpError(
             queueId,
             HTTP_STATUS_NOTIMPLEMENTED,
@@ -404,7 +408,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
         PEG_METHOD_EXIT();
         return;
     }
-
+    
     if ((httpMethod == HTTP_METHOD_M_POST) &&
              (httpVersion == _HTTP_VERSION_1_0))
     {
@@ -417,6 +421,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
             String::EMPTY,
             String::EMPTY,
             closeConnect);
+
         PEG_METHOD_EXIT();
         return;
     }
@@ -434,42 +439,36 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
         ConfigManager::parseBooleanValue(configManager->getCurrentValue(
             _CONFIG_PARAM_ENABLEAUTHENTICATION));
 
-    Boolean isRequestAuthenticated =
-        httpMessage->authInfo->isConnectionAuthenticated();
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    CIMKerberosSecurityAssociation* sa = NULL;
-    // The presence of a Security Association indicates that Kerberos is
-    // being used.
-    // Reset flag for subsequent calls to indicate that no Authorization
-    // record was sent. If one was sent the flag will be appropriately reset
-    // later.
-    // The sa is maintained while the connection is active.
-    sa = httpMessage->authInfo->getSecurityAssociation();
-    if (sa)
+    AuthenticationStatus authStatus(AUTHSC_UNAUTHORIZED);
+    if (httpMessage->authInfo->isConnectionAuthenticated())
     {
-        sa->setClientSentAuthorization(false);
+        authStatus = AuthenticationStatus(AUTHSC_SUCCESS);
     }
-#endif
 
     if (enableAuthentication)
     {
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-        // If we are using Kerberos (sa pointer is set), the client has
-        // already authenticated, and the client is NOT attempting to
-        // re-authenticate (dermined by an Authorization record being sent),
-        // then we want to set the local authenticate flag to true so that
-        // the authentication logic is skipped.
-        const char* authstr;
-        if (sa && sa->getClientAuthenticated() &&
-            !HTTPMessage::lookupHeader(
-                 headers, "Authorization", authstr, false))
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+        // Find cookie and check if we know it
+        String cookieHdr;
+        if (!authStatus.isSuccess() && _sessions->cookiesEnabled()
+                    && httpMessage->lookupHeader(headers, "Cookie", cookieHdr))
         {
-            isRequestAuthenticated = true;
+            String userName;
+            String cookie;
+            if (httpMessage->parseCookieHeader(cookieHdr, _COOKIE_NAME, cookie)
+                        && _sessions->isAuthenticated(cookie,
+                                    httpMessage->ipAddress, userName))
+            {
+                authStatus = AuthenticationStatus(AUTHSC_SUCCESS);
+                httpMessage->authInfo->setAuthenticatedUser(userName);
+                httpMessage->authInfo->setAuthType(
+                        AuthenticationInfoRep::AUTH_TYPE_COOKIE);
+            }
         }
 #endif
-        if (isRequestAuthenticated)
+
+        if (authStatus.isSuccess())
         {
             if (httpMessage->authInfo->getAuthType()==
                     AuthenticationInfoRep::AUTH_TYPE_SSL)
@@ -725,8 +724,12 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                     return;
                 }
 
-                if (!_authenticationManager->validateUserForHttpAuth(
-                        certUserName))
+                authStatus =
+                    _authenticationManager->validateUserForHttpAuth(
+                        certUserName,
+                        httpMessage->authInfo);
+
+                if (!authStatus.isSuccess())
                 {
                     PEG_AUDIT_LOG(logCertificateBasedUserValidation(
                         certUserName,
@@ -741,6 +744,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                         "User '$0' registered to this certificate is not a "
                             "valid user.",
                         certUserName);
+
                     _sendHttpError(
                         queueId,
                         HTTP_STATUS_UNAUTHORIZED,
@@ -982,7 +986,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
             String authorization;
 
             //
-            // do Local/Pegasus authenticatio
+            // do Local/Pegasus authentication
             //
             if (HTTPMessage::lookupHeader(headers,
                     _HTTP_HEADER_PEGASUSAUTHORIZATION, authorization, false))
@@ -992,14 +996,19 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                     //
                     // Do pegasus/local authentication
                     //
-                    isRequestAuthenticated =
+                    authStatus =
                         _authenticationManager->performPegasusAuthentication(
                             authorization,
                             httpMessage->authInfo);
 
-                    if (!isRequestAuthenticated)
+                    if (authStatus.isSuccess())
                     {
-                        String authChallenge;
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+                        _createCookie(httpMessage);
+#endif
+                    }
+                    else
+                    {
                         String authResp;
 
                         authResp = _authenticationManager->
@@ -1007,9 +1016,25 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                                 authorization,
                                 httpMessage->authInfo);
 
-                        if (!String::equal(authResp, String::EMPTY))
+                        if (authResp.size() > 0)
                         {
-                            _sendChallenge(queueId, authResp,closeConnect);
+                            if (authStatus.doChallenge())
+                            {
+                                _sendChallenge(
+                                    queueId,
+                                    authStatus.getErrorDetail(),
+                                    authResp,
+                                    closeConnect);
+                            }
+                            else
+                            {
+                                _sendHttpError(
+                                    queueId,
+                                    authStatus.getHttpStatus(),
+                                    String::EMPTY,
+                                    authStatus.getErrorDetail(),
+                                    closeConnect);
+                            }
                         }
                         else
                         {
@@ -1050,16 +1075,40 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                     headers, _HTTP_HEADER_AUTHORIZATION,
                     authorization, false))
             {
-                isRequestAuthenticated =
+                authStatus =
                     _authenticationManager->performHttpAuthentication(
                         authorization,
                         httpMessage->authInfo);
 
-                if (!isRequestAuthenticated)
+#ifdef PEGASUS_PAM_SESSION_SECURITY
+                if (authStatus.isPasswordExpired())
+                {
+                    // if this is CIM-XML and Password Expired treat as success
+                    // expired password state is already stored in
+                    // AuthenticationInfo
+                    const char* cimOperation;
+
+                    if (HTTPMessage::lookupHeader(
+                        headers,
+                        _HTTP_HEADER_CIMOPERATION,
+                        cimOperation,
+                        true))
+                    {
+                        authStatus = AuthenticationStatus(true);
+                    }                    
+                }
+#endif
+                if (authStatus.isSuccess())
+                {
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+                    _createCookie(httpMessage);
+#endif
+                }
+                else
                 {
                     //ATTN: the number of challenges get sent for a
                     //      request on a connection can be pre-set.
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
                     // Kerberos authentication needs access to the
                     // AuthenticationInfo object for this session in
                     // order to set up the reference to the
@@ -1073,9 +1122,25 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                     String authResp =
                         _authenticationManager->getHttpAuthResponseHeader();
 #endif
-                    if (!String::equal(authResp, String::EMPTY))
+                    if (authResp.size() > 0)
                     {
-                        _sendChallenge(queueId, authResp, closeConnect);
+                        if (authStatus.doChallenge())
+                        {
+                            _sendChallenge(
+                                queueId,
+                                authStatus.getErrorDetail(),
+                                authResp,
+                                closeConnect);
+                        }
+                        else
+                        {
+                            _sendHttpError(
+                                queueId,
+                                authStatus.getHttpStatus(),
+                                String::EMPTY,
+                                authStatus.getErrorDetail(),
+                                closeConnect);
+                        }
                     }
                     else
                     {
@@ -1096,7 +1161,6 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                     return;
                 }
             }  // End if HTTP Authorization
-
         } //end if (!isRequestAuthenticated)
 
     } //end enableAuthentication
@@ -1107,67 +1171,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
         "HTTPAuthenticatorDelegator - Authentication processing ended");
 
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    // The pointer to the sa is created in the authenticator so we need
-    // to also assign it here.
-    sa = httpMessage->authInfo->getSecurityAssociation();
-    if (sa)
-    {
-        // 0 - continue, 1 = send success, 2 = send response
-        Uint32 sendAction = 0;
-
-        // The following is processing to unwrap (decrypt) the request
-        // from the client when using kerberos authentication.
-        sa->unwrapRequestMessage(
-            httpMessage->message,
-            contentLength,
-            isRequestAuthenticated,
-            sendAction);
-
-        if (sendAction)  // send success or send response
-        {
-            if (httpMessage->message.size() == 0)
-            {
-                MessageLoaderParms msgParms(
-                    "Pegasus.Server.HTTPAuthenticatorDelegator."
-                        "AUTHORIZATION_HEADER_ERROR",
-                    "Authorization header error");
-                String msg(MessageLoader::getMessage(msgParms));
-                _sendHttpError(
-                    queueId,
-                    HTTP_STATUS_BADREQUEST,
-                    String::EMPTY,
-                    msg,
-                    closeConnect);
-            }
-            else
-            {
-                if (sendAction == 1)  // Send success
-                {
-                    _sendSuccess(
-                        queueId,
-                        String(
-                            httpMessage->message.getData(),
-                            httpMessage->message.size()),
-                        closeConnect);
-                }
-
-                if (sendAction == 2)  // Send response
-                {
-                    _sendResponse(
-                        queueId,
-                        httpMessage->message,
-                        closeConnect);
-                }
-            }
-
-            PEG_METHOD_EXIT();
-            return;
-        }
-    }
-#endif
-
-    if (isRequestAuthenticated || !enableAuthentication)
+    if (authStatus.isSuccess() || !enableAuthentication)
     {
         // Final bastion to ensure the remote privileged user access
         // check is done as it should be
@@ -1207,7 +1211,8 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
         //   - A "CIMOperation" header indicates a CIM operation request
         //   - A "CIMExport" header indicates a CIM export request
         //   - A "/wsman" path in the start message indicates a WS-Man request
-        //
+        //   - The requestUri starting with "/cimrs" indicates a CIM-RS request
+        CString uri = requestUri.getCString();
 
         const char* cimOperation;
 
@@ -1312,6 +1317,124 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                 deleteMessage = false;
             }
         }
+        else if (
+            (_rsOperationMessageQueueId != PEG_NOT_FOUND) &&
+            (strncmp((const char*)uri, "/cimrs", 6) == 0))
+        {
+            MessageQueue* queue = MessageQueue::lookup(
+                                  _rsOperationMessageQueueId);
+            if (queue)
+            {
+                httpMessage->dest = queue->getQueueId();
+                try
+                {
+                    PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
+                            "HTTPAuthenticatorDelegator - "
+                            "CIM-RS request enqueued [%d]",
+                            queue->getQueueId()));
+                    queue->enqueue(httpMessage);
+                }
+                catch (const bad_alloc&)
+                {
+                    delete httpMessage;
+                    _sendHttpError(
+                        queueId,
+                        HTTP_STATUS_REQUEST_TOO_LARGE,
+                        String::EMPTY,
+                        String::EMPTY,
+                        closeConnect);
+                    PEG_METHOD_EXIT();
+                    deleteMessage = false;
+                    return;
+                }
+                deleteMessage = false;
+            }
+            else
+            {
+                PEG_TRACE((TRC_HTTP, Tracer::LEVEL3,
+                        "HTTPAuthenticatorDelegator - "
+                        "Queue not found for URI: %s\n",
+                        (const char*)uri));
+            }
+        }
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+        //Unlike Other protocol, Web server is an pegasus extension
+        //and uses method name to identify it as it we don't have any
+        //like /cimrs and /wsman yet
+        //Instead, We deduce operation request to Webserver through it's
+        //method name GET and HEAD which is HACKISH.
+        else if ((_webOperationMessageQueueId != PEG_NOT_FOUND) &&
+            (httpMethod == HTTP_METHOD_GET || httpMethod == HTTP_METHOD_HEAD ))
+        {
+            MessageQueue* queue = MessageQueue::lookup(
+                                  _webOperationMessageQueueId);
+            if (queue)
+            {
+                httpMessage->dest = queue->getQueueId();
+                try
+                {
+                PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
+                            "HTTPAuthenticatorDelegator - "
+                            "WebServer request enqueued [%d]",
+                            queue->getQueueId()));
+                queue->enqueue(httpMessage);
+                }
+                catch (const bad_alloc&)
+                {
+                    delete httpMessage;
+                    HTTPConnection *httpQueue =
+                        dynamic_cast<HTTPConnection*>(
+                             MessageQueue::lookup(queueId));
+                    if (httpQueue)
+                    {
+                        httpQueue->handleInternalServerError(0, true);
+                    }
+                    PEG_METHOD_EXIT();
+                    deleteMessage = false;
+                    return;
+                }
+                catch (Exception& e)
+                {
+                    PEG_TRACE((TRC_HTTP, Tracer::LEVEL4,
+                                "HTTPAuthenticatorDelegator - "
+                                "WebServer has thrown an exception: %s",
+                                (const char*)e.getMessage().getCString()));
+                    delete httpMessage;
+                    _sendHttpError(
+                        queueId,
+                        HTTP_STATUS_INTERNALSERVERERROR,
+                        String::EMPTY,
+                        String::EMPTY,
+                        true);
+                    PEG_METHOD_EXIT();
+                    deleteMessage = false;
+                    return;
+                }
+                catch (...)
+                {
+                    delete httpMessage;
+                    HTTPConnection *httpQueue =
+                        dynamic_cast<HTTPConnection*>(
+                             MessageQueue::lookup(queueId));
+                    if (httpQueue)
+                    {
+                        httpQueue->handleInternalServerError(0, true);
+                    }
+                    PEG_METHOD_EXIT();
+                    deleteMessage = false;
+                    return;
+                }
+                    deleteMessage = false;
+            }
+            else
+            {
+               PEG_TRACE((TRC_HTTP, Tracer::LEVEL3,
+                        "HTTPAuthenticatorDelegator - "
+                        "Queue not found for URI: %s\n",
+                        (const char*)requestUri.getCString()));
+            }
+        }
+#endif /* PEGAUS_ENABLE_PROTOCOL_WEB */
         else
         {
             // We don't recognize this request message type
@@ -1350,7 +1473,7 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
     } // isRequestAuthenticated and enableAuthentication check
     else
     {  // client not authenticated; send challenge
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
         String authResp =
             _authenticationManager->getHttpAuthResponseHeader(
                 httpMessage->authInfo);
@@ -1358,10 +1481,25 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
         String authResp =
             _authenticationManager->getHttpAuthResponseHeader();
 #endif
-
-        if (!String::equal(authResp, String::EMPTY))
+        if (authResp.size() > 0)
         {
-            _sendChallenge(queueId, authResp,closeConnect);
+            if (authStatus.doChallenge())
+            {
+                _sendChallenge(
+                    queueId,
+                    authStatus.getErrorDetail(),
+                    authResp,
+                    closeConnect);
+            }
+            else
+            {
+                _sendHttpError(
+                    queueId,
+                    authStatus.getHttpStatus(),
+                    String::EMPTY,
+                    authStatus.getErrorDetail(),
+                    closeConnect);
+            }
         }
         else
         {
@@ -1378,8 +1516,53 @@ void HTTPAuthenticatorDelegator::handleHTTPMessage(
                 closeConnect);
         }
     }
-
 PEG_METHOD_EXIT();
+}
+
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+void HTTPAuthenticatorDelegator::_createCookie(
+        HTTPMessage *httpMessage)
+{
+    PEG_METHOD_ENTER(TRC_HTTP,
+        "HTTPAuthenticatorDelegator::_createCookie");
+
+    if (!_sessions->cookiesEnabled())
+    {
+        PEG_METHOD_EXIT();
+        return;
+    }
+
+    // The client passed authentication, give it a cookie
+    String sessionID = _sessions->addNewSession(
+            httpMessage->authInfo->getAuthenticatedUser(),
+            httpMessage->ipAddress);
+    const char attributes[] = ";secure;httpOnly;maxAge=";
+    ConfigManager *configManager = ConfigManager::getInstance();
+    String strTimeout = configManager->getCurrentValue("httpSessionTimeout");
+
+    String cookie;
+    cookie.reserveCapacity(sizeof(_COOKIE_NAME) + 1 + sessionID.size()
+            + sizeof(attributes) + strTimeout.size() + 1);
+    cookie.append(_COOKIE_NAME);
+    cookie.append("=");
+    cookie.append(sessionID);
+    cookie.append(attributes);
+    cookie.append(strTimeout);
+
+    // Schedule the cookie to be added in the next response
+    httpMessage->authInfo->setCookie(cookie);
+
+    PEG_METHOD_EXIT();
+}
+#endif
+
+void HTTPAuthenticatorDelegator::idleTimeCleanup()
+{
+    PEG_METHOD_ENTER(TRC_HTTP, "HTTPAuthenticatorDelegator::idleTimeCleanup");
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    _sessions->clearExpired();
+#endif
+    PEG_METHOD_EXIT();
 }
 
 PEGASUS_NAMESPACE_END

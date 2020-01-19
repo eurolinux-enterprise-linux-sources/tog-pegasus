@@ -485,7 +485,7 @@ void slp_service_agent::unregister(Boolean stopListener)
         }
 #else
         // Unregister with external SLP SA.
-        sa_reg_params *p;
+        sa_reg_params *p=0;
 
         _internal_regs.lookup(rp->url, p);
         _rep->srv_reg_local(_rep,
@@ -575,7 +575,6 @@ PEGASUS_THREAD_CDECL slp_service_agent::service_listener(void *parm)
     }
     slp_service_agent *agent = (slp_service_agent *)myself->get_parm();
 
-    lslpMsg msg_list;
 
 #if defined(PEGASUS_SLP_REG_TIMEOUT)
     Uint16 life = PEGASUS_SLP_REG_TIMEOUT * 60;
@@ -584,6 +583,9 @@ PEGASUS_THREAD_CDECL slp_service_agent::service_listener(void *parm)
 #endif
 
     agent->_should_listen = 1;
+#ifndef PEGASUS_SLP_REG_TIMEOUT
+    lslpMsg msg_list;
+#endif
 
     while (agent->_should_listen.get())
     {
@@ -599,7 +601,7 @@ PEGASUS_THREAD_CDECL slp_service_agent::service_listener(void *parm)
 #ifdef PEGASUS_USE_EXTERNAL_SLP_TYPE
             SLPHandle slp_handle = 0;
             SLPError slpErr = SLP_OK;
-            SLPError callbackErr=SLP_OK;
+            SLPError callbackErr = SLP_OK;
             if ((slpErr = SLPOpen(slp_lang, SLP_FALSE, &slp_handle))
                 == SLP_OK)
             {
@@ -675,7 +677,7 @@ PEGASUS_THREAD_CDECL slp_service_agent::service_listener(void *parm)
         {
         }
 #else
-        agent->_rep->service_listener(agent->_rep, 0, &msg_list);
+         agent->_rep->service_listener(agent->_rep, 0, &msg_list);
         _LSLP_SLEEP(1);
         if (agent->_update_reg_count.get() && agent->_should_listen.get())
         {
@@ -685,6 +687,24 @@ PEGASUS_THREAD_CDECL slp_service_agent::service_listener(void *parm)
         }
 #endif
     }
+
+#ifndef PEGASUS_SLP_REG_TIMEOUT
+    //Reaching here means listening is stopped,
+    //Free the memories used by thread
+    //
+    //Free the replies
+    lslpMsg *temp;
+    while(! _LSLP_IS_EMPTY( &msg_list))
+    {
+        temp = msg_list.next;
+        _LSLP_UNLINK(temp);
+
+        //safe to do free here as the lslpMsg is dynamically destructed
+        free(temp);
+    }
+#endif
+
+
 #endif /* PEGASUS_USE_EXTERNAL_SLP_TYPE */
     return ThreadReturnType(0);
 }

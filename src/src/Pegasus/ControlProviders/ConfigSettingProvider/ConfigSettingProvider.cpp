@@ -309,7 +309,7 @@ void ConfigSettingProvider::_modifyInstance(
         Boolean currentValueModified = false;
         Boolean plannedValueModified = false;
 
-        for (Uint32 i=0; i<propertyList.size(); i++)
+        for (Uint32 i = 0; i < propertyList.size(); ++i)
         {
             CIMName propertyName = propertyList[i];
             if (propertyName.equal (CURRENT_VALUE))
@@ -431,6 +431,23 @@ void ConfigSettingProvider::_modifyInstance(
                        PEGASUS_QUEUENAME_INDHANDLERMANAGER,
                        true);
                }
+               // send notify config change message to
+               // CIMOperationRequestDispatcher
+               if(String::equal(configPropertyName,
+                      "pullOperationsMaxObjectCount")||
+                  String::equal(configPropertyName,
+                      "pullOperationsMaxTimeout")||
+                  String::equal(configPropertyName,
+                      "pullOperationsDefaultTimeout"))
+               {
+                   _sendNotifyConfigChangeMessage(
+                       configPropertyName,
+                       currentValue,
+                       userName,
+                       PEGASUS_QUEUENAME_OPREQDISPATCHER,
+                       true);
+               }
+
 
                 // send notify config change message to ProviderManager Service
                 _sendNotifyConfigChangeMessage(

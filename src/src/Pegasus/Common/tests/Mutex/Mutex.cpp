@@ -85,7 +85,7 @@ void testForkSafeMutex()
     if (forkStatus < 0)
     {
         cerr << "fork() error " << errno << endl;
-        PEGASUS_ASSERT(0);
+        PEGASUS_TEST_ASSERT(0);
     }
     else if (forkStatus == 0)
     {
@@ -131,7 +131,7 @@ void testForkSafeMutex()
 }
 #endif
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     verbose = (getenv("PEGASUS_TEST_VERBOSE")) ? true : false;
 

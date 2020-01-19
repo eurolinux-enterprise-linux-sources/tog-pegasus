@@ -81,9 +81,9 @@ public:
         Array<HTTPHeader>& headers,
         Uint32& contentLength) const;
 
-#ifdef PEGASUS_DEBUG
+
     void printAll(PEGASUS_STD(ostream)& os) const;
-#endif
+
 
     static void lookupHeaderPrefix(
         Array<HTTPHeader>& headers,
@@ -130,6 +130,11 @@ public:
         String& authType,
         String& cookie);
 
+    static Boolean parseCookieHeader(
+        const String& cookieHeader,
+        const String& name,
+        String &value);
+
     /**
         Advances a given pointer to the first character that is not
         HTTP header whitespace (space or tabs).
@@ -154,14 +159,20 @@ public:
         Returns a pointer to the first CRLF or a LF separator.
 
         @param  data   input string.
-        @param  size   size of the input string.
-
+        
         @return pointer to the first CRLF or LF separator if any, else
                 returns NULL.
     */
-    static char* findSeparator(
-        const char* data,
-        Uint32 size);
+    static char* findSeparator(const char* data);
+
+    /**
+        Add a header just after the status line. This method can be used
+        to modify a message just before it is sent.
+
+        @param header   Complete header, in format "\r\nName: value". Especially
+        note the starting whitespace characters!
+     */
+    void injectHeader(const String &header);
 
 private:
 

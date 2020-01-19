@@ -29,7 +29,6 @@
 //
 //%/////////////////////////////////////////////////////////////////////////////
 
-#include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/Constants.h>
 #include <Pegasus/Common/CIMInstance.h>
 #include <Pegasus/Common/ArrayInternal.h>
@@ -40,14 +39,11 @@
 #include <Pegasus/Common/Tracer.h>
 #include <Pegasus/Common/XmlWriter.h>
 #include <Pegasus/Common/PegasusVersion.h>
-#include <Pegasus/Common/AcceptLanguageList.h>
-#include <Pegasus/Common/ContentLanguageList.h>
 #include <Pegasus/Common/LanguageParser.h>
 #include <Pegasus/Common/OperationContextInternal.h>
 #include <Pegasus/Common/MessageLoader.h>
 #include <Pegasus/Common/String.h>
 
-#include <Pegasus/General/IndicationFormatter.h>
 #include <Pegasus/General/Guid.h>
 #ifdef PEGASUS_INDICATION_PERFINST
 #include <Pegasus/General/Stopwatch.h>
@@ -58,6 +54,9 @@ ProviderRegistrationManager.h>
 #include <Pegasus/Query/QueryExpression/QueryExpression.h>
 #include <Pegasus/Query/QueryCommon/QueryException.h>
 #include <Pegasus/Repository/RepositoryQueryContext.h>
+
+#include <Pegasus/Handler/IndicationFormatter.h>
+
 
 #include "IndicationConstants.h"
 #include "SubscriptionRepository.h"
@@ -135,6 +134,12 @@ static const char _MSG_STATE_CHANGE_FAILED[] =
     "The requested state change failed : $0. Current IndicationService"
         " EnabledState : $1, HealthState : $2.";
 
+static const char _MSG_NOT_CREATOR_KEY[] =
+    "IndicationService.IndicationService._MSG_NOT_CREATOR";
+static const char _MSG_NOT_CREATOR[] =
+    "The current user($0) is not the creator($1)."
+    "Hence operation not permitted";
+
 // ATTN-RK-20020730: Temporary hack to fix Windows build
 Boolean ContainsCIMName(const Array<CIMName>& a, const CIMName& x)
 {
@@ -173,7 +178,7 @@ String _getEnabledStateString(Uint32 code)
         case _ENABLEDSTATE_STARTING:
             return String("Starting");
     }
-    PEGASUS_ASSERT(false); // Never reach to unknown state at present.
+    PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 
     return String("Unknown");
 }
@@ -188,7 +193,8 @@ String _getHealthStateString(Uint32 code)
         case _HEALTHSTATE_DEGRADEDWARNING:
             return String("Degraded/Warning");
     }
-    PEGASUS_ASSERT(false); // Never reach to unknown state at present.
+    // Never reach to unknown state at present.
+    PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 
     return String("Unknown");
 }
@@ -281,7 +287,7 @@ void IndicationService::_buildInternalControlProvidersRegistration()
     // ProvRegistrationProvider
     ControlProvIndReg regProvider;
 
-    regProvider.className = 
+    regProvider.className =
         PEGASUS_CLASSNAME_PROVIDERMODULE_INSTALERT;
 
    regProvider.providerModule =
@@ -318,7 +324,7 @@ void IndicationService::_buildInternalControlProvidersRegistration()
         CIMKeyBinding::STRING);
     keys.append(kb1);
 
-    CIMObjectPath pmPath = 
+    CIMObjectPath pmPath =
         CIMObjectPath(
             String(),
             CIMNamespaceName(),
@@ -332,7 +338,7 @@ void IndicationService::_buildInternalControlProvidersRegistration()
         CIMKeyBinding::STRING);
     keys.append(kb2);
 
-    CIMObjectPath providerPath = 
+    CIMObjectPath providerPath =
         CIMObjectPath(
             String(),
             CIMNamespaceName(),
@@ -344,11 +350,9 @@ void IndicationService::_buildInternalControlProvidersRegistration()
     String key = PEGASUS_MODULENAME_PROVREGPROVIDER;
     key.append(PEGASUS_CLASSNAME_PROVIDERMODULE_INSTALERT.getString());
 
-    Boolean ok = _controlProvIndRegTable.insert(
-        key,
-        regProvider);
-
-    PEGASUS_ASSERT(ok);
+    PEGASUS_FCT_EXECUTE_AND_ASSERT(
+        true,
+        _controlProvIndRegTable.insert(key,regProvider));
 }
 
 Uint16  IndicationService::_getEnabledState()
@@ -415,6 +419,13 @@ void IndicationService::handleEnqueue(Message* message)
 
     stopWatch.start();
 #endif
+
+    if (message->getType() == CIM_PROCESS_INDICATION_RESPONSE_MESSAGE)
+    {
+        _handleProcessIndicationResponse(message);
+        return;
+    }
+
     CIMRequestMessage* cimRequest = dynamic_cast<CIMRequestMessage *>(message);
     PEGASUS_ASSERT(cimRequest);
 
@@ -719,7 +730,7 @@ void IndicationService::_setSystemNameInHandlerFilterReference(
     reference.remove(reference.size()-1);
 
     Uint32 quotePos=reference.reverseFind(quote);
-    
+
     reference.remove(quotePos+1);
     reference.append(sysname);
     reference.append(quote);
@@ -752,13 +763,13 @@ void IndicationService::_setSubscriptionSystemName(
         PEGASUS_PROPERTYNAME_FILTER,
         filterValue,
         CIMKeyBinding::REFERENCE));
-    
+
     newKeys.append(CIMKeyBinding(
         PEGASUS_PROPERTYNAME_HANDLER,
         handlerValue,
         CIMKeyBinding::REFERENCE));
 
-    objPath.setKeyBindings(newKeys);    
+    objPath.setKeyBindings(newKeys);
 }
 
 void IndicationService::_setSystemName(
@@ -876,8 +887,8 @@ String _getReturnCodeString(Uint32 code)
         case _RETURNCODE_INVALIDPARAMETER:
             return String("Invalid Parameter");
     }
-
-    PEGASUS_ASSERT(false); // Never reach to unknown return code
+    // Never reach to unknown return code
+    PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 
     return String("Unknown");
 }
@@ -2212,7 +2223,7 @@ void IndicationService::_handleGetInstanceRequest(const Message* message)
         {
             if(String::compare(creator,userName) != 0)
             {
-                // only the creator of the handler has access to 
+                // only the creator of the handler has access to
                 // the handler deata.
                 MessageLoaderParms parms(
                 "IndicationService.IndicationService."
@@ -2414,7 +2425,7 @@ void IndicationService::_handleEnumerateInstancesRequest(const Message* message)
             {
                 if(String::compare(creator,userName) != 0)
                 {
-                    // only the creator of the handler has access to 
+                    // only the creator of the handler has access to
                     // the handler deata.
                     continue;
                 }
@@ -3116,6 +3127,94 @@ void IndicationService::_handleDeleteInstanceRequest(const Message* message)
     PEG_METHOD_EXIT();
 }
 
+void IndicationService::_handleProcessIndicationResponse(Message* message)
+{
+    PEG_METHOD_ENTER(TRC_INDICATION_SERVICE,
+        "IndicationService::_handleProcessIndicationResponse");
+
+    CIMProcessIndicationResponseMessage* response = dynamic_cast<
+        CIMProcessIndicationResponseMessage*> (message);
+    PEGASUS_ASSERT(response != 0);
+
+    CIMInstance instance = response->subscription;
+    try
+    {
+
+        if (!_subscriptionRepository->reconcileFatalError(instance))
+        {
+            delete message;
+            PEG_METHOD_EXIT();
+            return;
+        }
+
+        String creator = instance.getProperty (instance.findProperty
+            (PEGASUS_PROPERTYNAME_INDSUB_CREATOR)).getValue ().toString ();
+
+        AcceptLanguageList acceptLangs;
+        Uint32 propIndex = instance.findProperty
+            (PEGASUS_PROPERTYNAME_INDSUB_ACCEPTLANGS);
+        if (propIndex != PEG_NOT_FOUND)
+        {
+            String acceptLangsString;
+            instance.getProperty(propIndex).getValue().get(acceptLangsString);
+            if (acceptLangsString.size())
+            {
+                acceptLangs = LanguageParser::parseAcceptLanguageHeader(
+                    acceptLangsString);
+            }
+        }
+        ContentLanguageList contentLangs;
+        propIndex = instance.findProperty(
+           PEGASUS_PROPERTYNAME_INDSUB_CONTENTLANGS);
+
+        if (propIndex != PEG_NOT_FOUND)
+        {
+            String contentLangsString;
+            instance.getProperty(propIndex).getValue().get(contentLangsString);
+            if (contentLangsString.size())
+            {
+                contentLangs = LanguageParser::parseContentLanguageHeader(
+                    contentLangsString);
+            }
+        }
+        Array<NamespaceClassList> indicationSubclasses;
+        Array<ProviderClassList> indicationProviders;
+        indicationProviders = _getDeleteParams(instance, indicationSubclasses);
+        PEGASUS_ASSERT(indicationProviders.size() > 0);
+
+        _subscriptionTable->removeSubscription(
+            instance,
+            indicationSubclasses,
+            indicationProviders);
+
+        _sendWaitDeleteRequests (
+            indicationProviders,
+            instance,
+            acceptLangs,
+            contentLangs,
+            creator);
+#ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
+        _sendSubscriptionNotActiveMessagetoHandlerService(instance.getPath());
+#endif
+    }
+    catch(const Exception &e)
+    {
+        PEG_TRACE ((TRC_DISCARDED_DATA, Tracer::LEVEL2,
+            "Exception caught trying to reconcile the subscription's"
+                " OnFatalErrorPolicy %s",
+            (const char *) e.getMessage ().getCString()));
+    }
+    catch(...)
+    {
+        PEG_TRACE ((TRC_DISCARDED_DATA, Tracer::LEVEL2,
+            "Unknown exception caught trying to reconcile the subscription's"
+                " OnFatalErrorPolicy"));
+    }
+    delete message;
+    PEG_METHOD_EXIT();
+}
+
+
 // l10n TODO - might need to globalize another flow and another consumer
 // interface (ie. mdd's) if we can't agree on one export flow and consumer
 // interface (see PEP67)
@@ -3146,10 +3245,9 @@ void IndicationService::_handleProcessIndicationRequest(Message* message)
 
     Array<CIMInstance> matchedSubscriptions;
     Array<SubscriptionKey> matchedSubscriptionsKeys;
-    Uint32 timeout = request->timeoutMilliSec;
 
     CIMInstance indication = request->indicationInstance;
-    
+
     QueueIdStack qids = request->queueIds.copyAndPop();
 
     AutoPtr<DeliveryStatusAggregator, ExpectedResponseCountSetDone>
@@ -3433,8 +3531,6 @@ void IndicationService::_handleIndicationCallBack (
 
     IndicationService * service =
         static_cast<IndicationService *> (destination);
-    CIMInstance * subscription =
-        reinterpret_cast<CIMInstance *> (userParameter);
     AsyncReply * asyncReply =
         static_cast<AsyncReply *>(operation->removeResponse());
     CIMHandleIndicationResponseMessage* handlerResponse =
@@ -3449,11 +3545,6 @@ void IndicationService::_handleIndicationCallBack (
             "Sending Indication and HandlerService returns CIMException: %s",
             (const char*)
                 handlerResponse->cimException.getMessage().getCString()));
-
-        //
-        //  ATTN-CAKG-P1-20020326: Implement subscription's OnFatalErrorPolicy
-        //
-        //service->_subscriptionRepository->reconcileFatalError (*subscription);
     }
 
     delete handlerResponse;
@@ -3817,7 +3908,7 @@ void IndicationService::_handleNotifyProviderRegistrationRequest
                         (tableValue.providers[providerIndex].classList[0].
                             classList[0].equal(className)))
                     {
-                        
+
                         if (tableValue.providers[providerIndex].
                            classList[0].nameSpace ==
                                 formerSubscriptions[i].nameSpace)
@@ -4740,7 +4831,7 @@ Boolean IndicationService::_canCreate (
                 CIMTYPE_STRING,
                 true);
         }
-        else
+        else //Handler
         {
 #ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
             // Name is an optional property for Handler. If Name key property
@@ -4761,9 +4852,9 @@ Boolean IndicationService::_canCreate (
             instance,
             PEGASUS_PROPERTYNAME_CREATIONCLASSNAME,
             instance.getClassName().getString());
-        
+
         _setOrAddSystemNameInHandlerFilter(instance,String::EMPTY);
-        
+
         _initOrValidateStringProperty(
             instance,
             _PROPERTY_SYSTEMCREATIONCLASSNAME,
@@ -4901,7 +4992,7 @@ Boolean IndicationService::_canCreate (
         }
 
         //
-        //  Currently only six subclasses of the Listener Destination
+        //  Currently only seven subclasses of the Listener Destination
         //  class are supported -- further subclassing is not currently
         //  supported
         //
@@ -4916,8 +5007,12 @@ Boolean IndicationService::_canCreate (
                  (instance.getClassName ().equal
                   (PEGASUS_CLASSNAME_INDHANDLER_SNMP)) ||
                  (instance.getClassName ().equal
-                  (PEGASUS_CLASSNAME_INDHANDLER_WSMAN)))
+                  (PEGASUS_CLASSNAME_INDHANDLER_WSMAN)) ||
+                 (instance.getClassName ().equal
+                  (PEGASUS_CLASSNAME_LSTNRDST_FILE)))
+
         {
+
 #ifndef PEGASUS_ENABLE_SYSTEM_LOG_HANDLER
             if (instance.getClassName ().equal
             (PEGASUS_CLASSNAME_LSTNRDST_SYSTEM_LOG))
@@ -4991,7 +5086,7 @@ Boolean IndicationService::_canCreate (
                     CIMTYPE_STRING,
                     false);
             }
-            
+
             // WSMAN Indication Handler properties are checked below
             if (instance.getClassName().equal
                 (PEGASUS_CLASSNAME_INDHANDLER_WSMAN))
@@ -5043,6 +5138,17 @@ Boolean IndicationService::_canCreate (
                     instance,
                     PEGASUS_PROPERTYNAME_SNMPVERSION,
                     _supportedSNMPVersion);
+            }
+
+            if (instance.getClassName().equal
+                (PEGASUS_CLASSNAME_LSTNRDST_FILE))
+            {
+                // Checks for required file path
+                _checkRequiredProperty(
+                    instance,
+                    PEGASUS_PROPERTYNAME_LSTNRDST_FILE,
+                    CIMTYPE_STRING,
+                    false);
             }
 
             if (instance.getClassName().equal
@@ -5715,14 +5821,22 @@ Boolean IndicationService::_canModify (
     //
     String currentUser = ((IdentityContainer)request->operationContext.get
         (IdentityContainer :: NAME)).getUserName();
-    if ((creator != String::EMPTY) &&
+    if ((creator.size() != 0) &&
 #ifndef PEGASUS_OS_ZOS
         (!System::isPrivilegedUser (currentUser)) &&
-#endif
         (currentUser != creator))
+#else
+        !String::equalNoCase(currentUser, creator))
+#endif
     {
         PEG_METHOD_EXIT ();
-        throw PEGASUS_CIM_EXCEPTION(CIM_ERR_ACCESS_DENIED, String::EMPTY);
+        throw PEGASUS_CIM_EXCEPTION_L(
+                        CIM_ERR_ACCESS_DENIED,
+                        MessageLoaderParms(
+                            _MSG_NOT_CREATOR_KEY,
+                            _MSG_NOT_CREATOR,
+                            currentUser,
+                            creator));
     }
 
     PEG_METHOD_EXIT ();
@@ -5776,14 +5890,22 @@ Boolean IndicationService::_canDelete (
     //  If creator is String::EMPTY, anyone may modify or delete the
     //  instance
     //
-    if ((creator != String::EMPTY) &&
+    if ((creator.size() != 0) &&
 #ifndef PEGASUS_OS_ZOS
         (!System::isPrivilegedUser (currentUser)) &&
-#endif
         (currentUser != creator))
+#else
+        !String::equalNoCase(currentUser, creator))
+#endif
     {
         PEG_METHOD_EXIT ();
-        throw PEGASUS_CIM_EXCEPTION(CIM_ERR_ACCESS_DENIED, String::EMPTY);
+        throw PEGASUS_CIM_EXCEPTION_L(
+                        CIM_ERR_ACCESS_DENIED,
+                        MessageLoaderParms(
+                            _MSG_NOT_CREATOR_KEY,
+                            _MSG_NOT_CREATOR,
+                            currentUser,
+                            creator));
     }
 
     //
@@ -6409,7 +6531,7 @@ Array<ProviderClassList> IndicationService::_getIndicationProviders (
 
     CIMPropertyList requiredPropertyList;
 
-    
+
     //
     //  For each indication subclass, get providers
     //
@@ -7037,7 +7159,7 @@ Boolean IndicationService::_getTimeRemaining(
                 //
                 else
                 {
-                    PEGASUS_ASSERT(false);
+                    PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
                 }
             }
 
@@ -7150,7 +7272,7 @@ void IndicationService::_getCreateParams(
             _subscriptionRepository->getIndicationSubclasses(
                 sourceNameSpaces[i],
                 indicationClassName);
-        
+
         NamespaceClassList namespaceClassList;
         namespaceClassList.nameSpace = sourceNameSpaces[i];
         namespaceClassList.classList = indSubclasses;
@@ -7374,7 +7496,7 @@ Array<ProviderClassList> IndicationService::
             prcl.classList.clear();
             prcl.classList.append(nscl);
             indProviders.append(prcl);
-            
+
         }
     }
     return indProviders;
@@ -7484,11 +7606,7 @@ void IndicationService::_sendAsyncCreateRequests(
 
             default:
             {
-                PEG_TRACE((TRC_INDICATION_SERVICE,Tracer::LEVEL1,
-                    "Unexpected origRequest type %s "
-                    "in _sendAsyncCreateRequests",
-                    MessageTypeToString(origRequest->getType())));
-                PEGASUS_ASSERT(false);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
                 break;
             }
         }
@@ -7576,7 +7694,7 @@ void IndicationService::_sendAsyncCreateRequests(
                     op,
                     serviceId,
                     request.get()));
-        }        
+        }
         else
         {
            serviceId = _moduleController;
@@ -7972,11 +8090,7 @@ void IndicationService::_sendAsyncDeleteRequests(
 
             default:
             {
-                PEG_TRACE((TRC_INDICATION_SERVICE,Tracer::LEVEL1,
-                    "Unexpected origRequest type %s "
-                    "in _sendAsyncDeleteRequests",
-                    MessageTypeToString(origRequest->getType())));
-                PEGASUS_ASSERT(false);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
                 break;
             }
         }
@@ -8043,21 +8157,23 @@ void IndicationService::_sendAsyncDeleteRequests(
         Uint32 serviceId;
         if (!indicationProviders[i].controlProviderName.size())
         {
-            AsyncLegacyOperationStart * async_req =
-                new AsyncLegacyOperationStart(
-                   op,
-                   _providerManager,
-                   request);
+            // constructor puts the object itself into a linked list
+            // DO NOT remove the new !!!
+            new AsyncLegacyOperationStart(
+                op,
+                _providerManager,
+                request);
             serviceId = _providerManager;
         }
         else
         {
-           AsyncModuleOperationStart* moduleControllerRequest =
-               new AsyncModuleOperationStart(
-                   op,
-                   _moduleController,
-                   indicationProviders[i].controlProviderName,
-                   request);
+            // constructor puts the object itself into a linked list
+            // DO NOT remove the new !!!
+            new AsyncModuleOperationStart(
+                op,
+                _moduleController,
+                indicationProviders[i].controlProviderName,
+                request);
            serviceId = _moduleController;
         }
 
@@ -8267,12 +8383,7 @@ void IndicationService::_handleOperationResponseAggregation(
 
         default:
         {
-            PEG_TRACE((TRC_INDICATION_SERVICE, Tracer::LEVEL1,
-                "Unexpected request type %s "
-                "in _handleOperationResponseAggregation",
-                MessageTypeToString(
-                    operationAggregate->getRequest(0)->getType())));
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
             break;
         }
     }
@@ -8468,7 +8579,7 @@ void IndicationService::_handleCreateResponseAggregation(
                     operationAggregate->getOrigRequest()->buildResponse());
             PEGASUS_ASSERT(response != 0);
             response->cimException = cimException;
-            
+
             // put correct SystemName in place
             _setSubscriptionSystemName(
                 instanceRef,

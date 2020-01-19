@@ -53,6 +53,10 @@ class CIMExportRequestDispatcher;
 class CIMExportResponseEncoder;
 class CIMExportRequestDecoder;
 class WsmProcessor;
+class RsProcessor;
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+class WebServer;
+#endif /* PEGASUS_ENABLE_PROTOCOL_WEB */
 class HTTPAcceptor;
 class CIMRepository;
 
@@ -155,6 +159,15 @@ public:
     */
     static void auditLogInitializeCallback();
 
+    /**
+        get the singleton instance of the CIMServer object
+        @return  pointer to the singleton instance of the CIMServer
+                 object. This should NEVER be NULL since that would
+                 indicate that the CIMServer object was not
+                 initialized so server not alive.
+    */
+    static CIMServer* getInstance();
+
 private:
     Boolean _dieNow;
 
@@ -171,6 +184,10 @@ private:
     CIMExportRequestDecoder* _cimExportRequestDecoder;
     HTTPAuthenticatorDelegator* _httpAuthenticatorDelegator;
 
+    RsProcessor* _rsProcessor;
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    WebServer* _webServer;
+#endif
 #ifdef PEGASUS_ENABLE_PROTOCOL_WSMAN
     WsmProcessor* _wsmProcessor;
 #endif
@@ -189,9 +206,12 @@ private:
     static SCMOClass _scmoClassCache_GetClass(
         const CIMNamespaceName& nameSpace,
         const CIMName& className);
-    
+
     void _init();
     SSLContext* _getSSLContext();
+
+    //Give access to _providerManager
+    friend class EnumerationContextTable;
 };
 
 PEGASUS_NAMESPACE_END

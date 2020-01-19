@@ -395,9 +395,7 @@ public:
     // Overrides the virtual function setCommand from Command class
     // This is defined as an empty function.
     //
-    void setCommand(
-        Uint32 argc,
-        char* argv[])
+    void setCommand(Uint32, char**)
     {
         // Empty function
     }
@@ -1753,7 +1751,6 @@ void CIMProviderCommand::_printList(
     Uint32 maxModuleLength=0;
     Uint32 maxStatusLength=0;
 
-    Uint32 length=0;
     Array<Uint16> _status;
     String output;
     String statusValue;

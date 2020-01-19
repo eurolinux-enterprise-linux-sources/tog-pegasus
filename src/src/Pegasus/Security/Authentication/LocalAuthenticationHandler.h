@@ -64,9 +64,9 @@ public:
         header.
         @param authHeader String containing the Authorization header
         @param authInfo Reference to AuthenticationInfo object
-        @return true on successful authentication, false otherwise
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean authenticate(
+    AuthenticationStatus authenticate(
         const String& authHeader,
         AuthenticationInfo* authInfo);
 
@@ -84,9 +84,13 @@ public:
     /**
         Verify whether the user is valid.
         @param userName String containing the user name
-        @return true on successful validation, false otherwise
+        @param authInfo reference to AuthenticationInfo object that holds the
+        authentication information for the given connection.
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean validateUser(const String& userName);
+    AuthenticationStatus validateUser(
+        const String& userName,
+        AuthenticationInfo* authInfo = 0);
 
 private:
 

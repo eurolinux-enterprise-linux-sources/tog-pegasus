@@ -58,9 +58,9 @@
 #include <Pegasus/Common/System.h>
 #include <Pegasus/Common/Executor.h>
 
-#include <Executor/Strlcpy.h>
 
 #if defined(PEGASUS_ENABLE_PRIVILEGE_SEPARATION)
+#include <Executor/Strlcpy.h>
 # include <Executor/Socket.h>
 # include <Executor/Messages.h>
 #endif
@@ -502,14 +502,13 @@ public:
         readPipe = new AnonymousPipe(readFdStr, 0);
         writePipe = new AnonymousPipe(0, writeFdStr);
 
-#  if defined(PEGASUS_HAS_SIGNALS)
-#   if !defined(PEGASUS_DISABLE_PROV_USERCTXT) && !defined(PEGASUS_OS_ZOS)
+#  if defined(PEGASUS_HAS_SIGNALS) && \
+      !(defined(PEGASUS_DISABLE_PROV_USERCTXT) || defined(PEGASUS_OS_ZOS))
         // The cimprovagt forks and returns right away.  Clean up the zombie
         // process now instead of in reapProviderAgent().
         int status = 0;
         while ((status = waitpid(pid, 0, 0)) == -1 && errno == EINTR)
             ;
-#   endif
 #  endif
 
         PEG_METHOD_EXIT();
@@ -531,74 +530,83 @@ public:
         return -1;
     }
 
-    virtual int reapProviderAgent(
-        int pid)
+#if defined(PEGASUS_ENABLE_PRIVILEGE_SEPARATION)
+    virtual int reapProviderAgent(int)
     {
-#if !defined(PEGASUS_ENABLE_PRIVILEGE_SEPARATION)
-
-        int status = 0;
-
-# if defined(PEGASUS_HAS_SIGNALS)
-#  if defined(PEGASUS_DISABLE_PROV_USERCTXT) || defined(PEGASUS_OS_ZOS)
-        // When provider user context is enabled, this is done in
-        // startProviderAgent().
-        while ((status = waitpid(pid, 0, 0)) == -1 && errno == EINTR)
-            ;
-#  endif
-# endif
-
-        return status;
-
-#else /* PEGASUS_ENABLE_PRIVILEGE_SEPARATION is defined */
-
         // Out-of-Process providers are never started by the cimserver process
         // when Privilege Separation is enabled.
         return -1;
-
-#endif
     }
+#else  /* PEGASUS_ENABLE_PRIVILEGE_SEPARATION is NOT defined */
+# if defined(PEGASUS_HAS_SIGNALS) && \
+     (defined(PEGASUS_DISABLE_PROV_USERCTXT) || defined(PEGASUS_OS_ZOS))
+    virtual int reapProviderAgent(int pid)
+    {
+        int status = 0;
+        // When provider user context is enabled, this is done in
+        // startProviderAgent().
+        while ((status = waitpid(pid, 0, 0)) == -1 && errno == EINTR)
+        {
+        };
+        return status;
+    }
+# else
+    virtual int reapProviderAgent(int)
+    {
+        return 0;
+    }
+# endif
+#endif
 
+
+#if defined(PEGASUS_PAM_AUTHENTICATION)
     virtual int authenticatePassword(
         const char* username,
         const char* password)
     {
-#if defined(PEGASUS_PAM_AUTHENTICATION)
         return PAMAuthenticate(username, password);
-#else
-        // ATTN: not handled so don't call in this case.
-        return -1;
-#endif
     }
-
+    
     virtual int validateUser(
         const char* username)
     {
-#if defined(PEGASUS_PAM_AUTHENTICATION)
         return PAMValidateUser(username);
-#else
+    }
+#else    
+    virtual int authenticatePassword(
+        const char*,
+        const char*)
+    {
         // ATTN: not handled so don't call in this case.
         return -1;
-#endif
     }
+    
+    virtual int validateUser(
+        const char*)
+    {
+        // ATTN: not handled so don't call in this case.
+        return -1;
+    }
+#endif
 
     virtual int challengeLocal(
-        const char* username,
-        char challengeFilePath[EXECUTOR_BUFFER_SIZE])
+        const char*,
+        char[EXECUTOR_BUFFER_SIZE])
     {
         // ATTN: not handled so don't call in this case.
         return -1;
     }
 
     virtual int authenticateLocal(
-        const char* challengeFilePath,
-        const char* response)
+        const char*,
+        const char*)
     {
         // ATTN: not handled so don't call in this case.
         return -1;
     }
 
     virtual int updateLogLevel(
-        const char* logLevel)
+        const char*)
     {
         // If Privilege Separation is not enabled, we don't need to update
         // the log level in the Executor.

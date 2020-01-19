@@ -35,11 +35,11 @@
 PEGASUS_USING_PEGASUS;
 PEGASUS_USING_STD;
 
-int main(int argc, char** argv)
+int main()
 {
     const CIMNamespaceName NAMESPACE =
         CIMNamespaceName("test/testprovider");
-    const CIMName CLASSNAME = CIMName("Test_IndicationProviderClass");
+    const CIMName CLASSNAME = CIMName("IndicationStressTestClass");
 
     try
     {

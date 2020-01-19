@@ -48,7 +48,9 @@ PEGASUS_USING_PEGASUS;
 
 PEGASUS_NAMESPACE_BEGIN
 
+#ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
 static struct timeval deallocateWait = { 300, 0 };
+#endif
 
 IndicationHandlerService::IndicationHandlerService(CIMRepository* repository)
     : Base("IndicationHandlerService"),
@@ -57,11 +59,31 @@ IndicationHandlerService::IndicationHandlerService(CIMRepository* repository)
       ,_destinationQueueTable(),
       _deliveryThreadPool(0, "IndicationHandlerService", 0, 5, deallocateWait),
       _dispatcherThread(_dispatcherRoutine, this, true),
-      _maxDeliveryThreads(5)
+      _maxDeliveryThreads(5),
+      _needDestinationQueueCleanup(false) 
 #endif
 {
 #ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
     _startDispatcher();
+    // Initialize with default value which is three
+    _maxDeliveryRetry=3 ; 
+    Uint64 v;
+    // Determine the value for the configuration parameter
+    // maxIndicationDeliveryRetryAttempts
+    ConfigManager* configManager = ConfigManager::getInstance();
+    String strValue = configManager->getCurrentValue(
+        "maxIndicationDeliveryRetryAttempts");
+    if (StringConversion::decimalStringToUint64(strValue.getCString(), v) &&
+        StringConversion::checkUintBounds(v, CIMTYPE_UINT16) )
+    {
+        _maxDeliveryRetry = (Uint16)v ;
+        PEG_TRACE((
+            TRC_IND_HANDLER, Tracer::LEVEL4,
+            "Value of maxIndicationDeliveryRetryAttempts when "
+                "cimserver start = %u",
+            _maxDeliveryRetry));
+    }
+
 #endif
 }
 
@@ -72,20 +94,11 @@ IndicationHandlerService::~IndicationHandlerService()
 
 #ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
     _stopDispatcher();
-
-    WriteLock lock(_destinationQueueTableLock);
-    // Cleanup all DestinationQueues.
-    DestinationQueueTable::Iterator i =
-        _destinationQueueTable.start();
-    DestinationQueue *queue;
-
-    for(; i; i++)
+    
+    if(_needDestinationQueueCleanup)
     {
-        queue = i.value();
-        queue->shutdown();
-        delete queue;
-    }
-    _destinationQueueTable.clear();
+        _destinationQueuesCleanup();
+    } 
 #endif
 
     PEG_METHOD_EXIT();
@@ -104,6 +117,22 @@ void IndicationHandlerService::_handle_async_request(AsyncRequest* req)
     {
         AutoPtr<Message> legacy(
             static_cast<AsyncLegacyOperationStart *>(req)->get_action());
+
+        // Update the requested language to the service thread language context.
+        if (dynamic_cast<CIMMessage *>(legacy.get()) != 0)
+        {
+            try
+            {
+                ((CIMMessage*)legacy.get())->updateThreadLanguages();
+            }
+            catch (Exception& e)
+            {
+                PEG_TRACE((TRC_THREAD, Tracer::LEVEL2,
+                    "IndicationHandlerService::_handle_async_request update "
+                    "thread languages failed because of %s", 
+                    (const char*)e.getMessage().getCString()));
+            }
+        }
 
         AutoPtr<CIMResponseMessage> response;
 
@@ -234,7 +263,7 @@ void IndicationHandlerService::handleEnqueue(Message* message)
         }
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             break;
     }
 }
@@ -275,6 +304,7 @@ CIMHandleIndicationResponseMessage* IndicationHandlerService::_handleIndication(
         (const char*)(handler.getClassName().getString().getCString()),
         (const char*)(handler.getProperty(handler.findProperty(
         PEGASUS_PROPERTYNAME_NAME)).getValue().toString().getCString())));
+
     Uint32 pos = PEG_NOT_FOUND;
 
     if (className.equal (PEGASUS_CLASSNAME_INDHANDLER_CIMXML) ||
@@ -371,6 +401,7 @@ CIMHandleIndicationResponseMessage* IndicationHandlerService::_handleIndication(
                     reinterpret_cast<CIMExportIndicationResponseMessage *>(
                         (static_cast<AsyncLegacyOperationResult *>(
                             asyncReply.get()))->get_result()));
+
                 cimException = exportResponse->cimException;
 
                 this->return_op(op.release());
@@ -380,12 +411,42 @@ CIMHandleIndicationResponseMessage* IndicationHandlerService::_handleIndication(
                  // Set sequence-identfier and enqueue if the indication
                  // profile is enabled.
 #ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
-                _setSequenceIdentifierAndEnqueue(request);
-                if (request->deliveryStatusAggregator &&
-                    request->deliveryStatusAggregator->waitUntilDelivered)
+                // If the maxIndicationDeliveryRetryAttempts is set to 0 ,
+                // which indicates that reliable indications is disabled,
+                // try indication delivery once
+                                
+                if(_maxDeliveryRetry)   
                 {
-                    request->deliveryStatusAggregator = 0;
+                    
+                    _setSequenceIdentifierAndEnqueue(request);
+                    _needDestinationQueueCleanup = true;
+                    if (request->deliveryStatusAggregator &&
+                        request->deliveryStatusAggregator->waitUntilDelivered)
+                    {
+                        request->deliveryStatusAggregator = 0;
+                    }
                 }
+                else
+                {
+
+                    if (request->deliveryStatusAggregator)
+                    {
+                        request->deliveryStatusAggregator->complete();
+                        request->deliveryStatusAggregator = 0;
+                    }
+                    handleIndicationSuccess = _loadHandler(
+                        request, cimException);
+                    // check if DestinationQueue needs to be Cleaned up
+                    if(_needDestinationQueueCleanup)
+                    {
+                        _destinationQueuesCleanup() ;
+                    }       
+             
+                    PEG_TRACE ((TRC_INDICATION_GENERATION, Tracer::LEVEL4,
+                        "Reliable indication is  %s",
+                        _maxDeliveryRetry ? "enable" : "disable"));
+                }  
+
 #else
                 if (request->deliveryStatusAggregator)
                 {
@@ -436,7 +497,8 @@ CIMHandleIndicationResponseMessage* IndicationHandlerService::_handleIndication(
         }
     }
     else if ((className.equal (PEGASUS_CLASSNAME_LSTNRDST_SYSTEM_LOG)) ||
-             (className.equal (PEGASUS_CLASSNAME_LSTNRDST_EMAIL)))
+             (className.equal (PEGASUS_CLASSNAME_LSTNRDST_EMAIL)) ||
+             (className.equal (PEGASUS_CLASSNAME_LSTNRDST_FILE)))
     {
         if (request->deliveryStatusAggregator)
         {
@@ -561,11 +623,22 @@ CIMHandler* IndicationHandlerService::_lookupHandlerForClass(
        handlerId = String("snmpIndicationHandler");
    }
    else if (className.equal(PEGASUS_CLASSNAME_LSTNRDST_SYSTEM_LOG))
+   {
        handlerId = String("SystemLogListenerDestination");
+   }
    else if (className.equal(PEGASUS_CLASSNAME_LSTNRDST_EMAIL))
+   {
        handlerId = String("EmailListenerDestination");
+   }
    else if (className.equal(PEGASUS_CLASSNAME_INDHANDLER_WSMAN))
+   {
        handlerId = String("wsmanIndicationHandler"); 
+   }
+   else if (className.equal(PEGASUS_CLASSNAME_LSTNRDST_FILE))
+   {
+       handlerId = String("FileListenerDestination");
+   }
+
 
    PEGASUS_ASSERT(handlerId.size() != 0);
 
@@ -843,8 +916,9 @@ CIMNotifyListenerNotActiveResponseMessage*
     {
         queue->cleanup();
         delete queue;
-        Boolean ok = _destinationQueueTable.remove(queueName);
-        PEGASUS_ASSERT(ok);
+        PEGASUS_FCT_EXECUTE_AND_ASSERT(
+            true,
+            _destinationQueueTable.remove(queueName));
     }
 
     CIMNotifyListenerNotActiveResponseMessage *response =
@@ -877,6 +951,7 @@ CIMNotifyConfigChangeResponseMessage*
     if (String::equal(
         notifyRequest->propertyName, "maxIndicationDeliveryRetryAttempts")) 
     {
+        _maxDeliveryRetry = (Uint16)v ;  
         DestinationQueue::setDeliveryRetryAttempts(v);
     }
     else if(String::equal(
@@ -886,7 +961,7 @@ CIMNotifyConfigChangeResponseMessage*
     }
     else
     {
-        PEGASUS_ASSERT(0);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
     }
 
 
@@ -980,8 +1055,10 @@ void IndicationHandlerService::_setSequenceIdentifierAndEnqueue(
     }
 
     queue = new DestinationQueue(handler);
-    Boolean ok = _destinationQueueTable.insert(queueName, queue);
-    PEGASUS_ASSERT(ok);
+    PEGASUS_FCT_EXECUTE_AND_ASSERT(
+        true,
+        _destinationQueueTable.insert(queueName, queue));
+
     queue->enqueue(message);
     _dispatcherWaitSemaphore.signal();
     PEG_TRACE((TRC_IND_HANDLER, Tracer::LEVEL4,
@@ -1236,6 +1313,22 @@ void IndicationHandlerService::filterInstance(bool includeQualifiers,
 
     }
 
+}
+
+void IndicationHandlerService:: _destinationQueuesCleanup()
+{
+    WriteLock lock(_destinationQueueTableLock);
+    _needDestinationQueueCleanup = false;
+    // Cleanup all DestinationQueues.
+    DestinationQueueTable::Iterator i =  _destinationQueueTable.start();
+    DestinationQueue *queue;
+    for(; i; i++)
+    {
+        queue = i.value();
+        queue->shutdown();
+        delete queue;
+    }
+    _destinationQueueTable.clear();
 }
 #endif
 

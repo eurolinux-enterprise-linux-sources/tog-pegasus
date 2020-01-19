@@ -37,6 +37,7 @@
 # include <openssl/err.h>
 # include <openssl/ssl.h>
 # include <openssl/rand.h>
+# include <openssl/tls1.h>
 #else
 # define SSL_CTX void
 #endif // end of PEGASUS_HAS_SSL
@@ -186,7 +187,7 @@ public:
 // return 1 if revoked, 0 otherwise
 //
 int SSLCallback::verificationCRLCallback(
-    int ok,
+    int,
     X509_STORE_CTX* ctx,
     X509_STORE* sslCRLStore)
 {
@@ -260,14 +261,14 @@ int SSLCallback::verificationCRLCallback(
     //get revoked certificates
     STACK_OF(X509_REVOKED)* revokedCerts = NULL;
     revokedCerts = X509_CRL_get_REVOKED(crl);
-    int numRevoked = sk_X509_REVOKED_num(revokedCerts);
+    int numRevoked= sk_X509_REVOKED_num(revokedCerts);
     PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
         "---> SSL: Number of certificates revoked by the issuer %d\n",
         numRevoked));
 
     //check whether the subject's certificate is revoked
     X509_REVOKED* revokedCert = NULL;
-    for (int i = 0; i < sk_X509_REVOKED_num(revokedCerts); i++)
+    for (int i = 0; i < numRevoked; i++)
     {
         revokedCert = sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
         //a matching serial number indicates revocation
@@ -523,7 +524,8 @@ SSLContextRep::SSLContextRep(
     const String& crlPath,
     SSLCertificateVerifyFunction* verifyCert,
     const String& randomFile,
-    const String& cipherSuite)
+    const String& cipherSuite,
+    const Boolean& sslCompatibility)
 {
     PEG_METHOD_ENTER(TRC_SSL, "SSLContextRep::SSLContextRep()");
 
@@ -533,12 +535,12 @@ SSLContextRep::SSLContextRep(
     _crlPath = crlPath;
     _certificateVerifyFunction = verifyCert;
     _cipherSuite = cipherSuite;
-
+    _sslCompatibility = sslCompatibility;
     //
     // If a truststore and/or peer verification function is specified,
     // enable peer verification
     //
-    _verifyPeer = (trustStore != String::EMPTY || verifyCert != NULL);
+    _verifyPeer = (trustStore.size() != 0 || verifyCert != NULL);
 
     _randomInit(randomFile);
 
@@ -559,7 +561,7 @@ SSLContextRep::SSLContextRep(const SSLContextRep& sslContextRep)
     _certificateVerifyFunction = sslContextRep._certificateVerifyFunction;
     _randomFile = sslContextRep._randomFile;
     _cipherSuite = sslContextRep._cipherSuite;
-
+    _sslCompatibility = sslContextRep._sslCompatibility;
     _sslContext = _makeSSLContext();
 
     PEG_METHOD_EXIT();
@@ -585,8 +587,6 @@ void SSLContextRep::_randomInit(const String& randomFile)
 {
     PEG_METHOD_ENTER(TRC_SSL, "SSLContextRep::_randomInit()");
 
-    Boolean ret;
-    int retVal = 0;
 
 #if defined(PEGASUS_SSL_RANDOMFILE) && !defined(PEGASUS_OS_PASE)
     if ( RAND_status() == 0 )
@@ -608,10 +608,10 @@ void SSLContextRep::_randomInit(const String& randomFile)
         //
         // Try the given random seed file
         //
-        ret = FileSystem::exists(randomFile);
+        Boolean ret = FileSystem::exists(randomFile);
         if (ret)
         {
-            retVal = RAND_load_file(randomFile.getCString(), -1);
+            int retVal = RAND_load_file(randomFile.getCString(), -1);
             if ( retVal < 0 )
             {
                 PEG_TRACE((TRC_SSL, Tracer::LEVEL1,
@@ -705,12 +705,11 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
 {
     PEG_METHOD_ENTER(TRC_SSL, "SSLContextRep::_makeSSLContext()");
 
-    SSL_CTX * sslContext = 0;
 
     //
     // create SSL Context Area
     //
-
+    SSL_CTX *sslContext = NULL;
     if (!(sslContext = SSL_CTX_new(SSLv23_method())))
     {
         PEG_METHOD_EXIT();
@@ -720,10 +719,40 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         throw SSLException(parms);
     }
 
+
+    int options = SSL_OP_ALL;
+
+
+   
+    SSL_CTX_set_options(sslContext, options);
+    if ( _sslCompatibility == false )
+    {
+
+#ifdef TLS1_2_VERSION
+        // Enable only TLSv1.2 and disable all other protocol (SSL v2, SSL v3,
+        // TLS v1.0, TLSv1.1)
+
+        options = SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_SSLv3;
+#else
+        PEG_METHOD_EXIT();
+        MessageLoaderParms parms(
+            " Common.SSLContext.TLS_1_2_PROTO_NOT_SUPPORTED",
+            "TLSv1.2 protocol support is not detected on this system. "
+            " To run in less secured mode, set sslBackwardCompatibility=true"
+            " in planned config file and start cimserver.");
+        throw SSLException(parms);
+#endif
+    }
+
+    // sslv2 is off permanently even if sslCompatibility is true
+    options |= SSL_OP_NO_SSLv2;
+    SSL_CTX_set_options(sslContext, options);
+
 #ifdef PEGASUS_SSL_WEAKENCRYPTION
     if (!(SSL_CTX_set_cipher_list(sslContext, SSL_TXT_EXP40)))
     {
         SSL_CTX_free(sslContext);
+        sslContext = NULL;
 
         MessageLoaderParms parms(
             "Common.SSLContext.COULD_NOT_SET_CIPHER_LIST",
@@ -732,11 +761,12 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
     }
 #endif
 
-    if (_cipherSuite != String::EMPTY)
+    if (_cipherSuite.size() != 0)
     {
         if (!(SSL_CTX_set_cipher_list(sslContext, _cipherSuite.getCString())))
         {
             SSL_CTX_free(sslContext);
+            sslContext = NULL;
 
             PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
                 "---> SSL: Cipher Suite could not be specified");
@@ -746,15 +776,27 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
             throw SSLException(parms);
         }
         else
+        {
            PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
                 "---> SSL: Cipher suite set to %s",
                 (const char *)_cipherSuite.getCString()));
+        }
     }
 
     //
     // set overall SSL Context flags
     //
-
+    // For OpenSSLversion >1.0.0 use SSL_OP_NO_COMPRESSION to disable the 
+    // compression For TLS 1.2 version, compression does not suffer from 
+    // CRIME attack so don.t disable compression For other OpenSSL versions 
+    // zero out the compression methods.
+#ifdef SSL_OP_NO_COMPRESSION 
+#ifndef TLS1_2_VERSION
+    SSL_CTX_set_options(sslContext, SSL_OP_NO_COMPRESSION); 
+#endif
+#elif OPENSSL_VERSION_NUMBER >= 0x00908000L
+    sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
+#endif    
     SSL_CTX_set_quiet_shutdown(sslContext, 1);
     SSL_CTX_set_mode(sslContext, SSL_MODE_AUTO_RETRY);
     SSL_CTX_set_mode(sslContext, SSL_MODE_ENABLE_PARTIAL_WRITE);
@@ -764,12 +806,6 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
     // Keep memory usage as low as possible 
     SSL_CTX_set_mode (sslContext, SSL_MODE_RELEASE_BUFFERS);
 #endif
-
-    int options = SSL_OP_ALL;
-#ifndef PEGASUS_ENABLE_SSLV2 //SSLv2 is disabled by default
-    options |= SSL_OP_NO_SSLv2;
-#endif
-    SSL_CTX_set_options(sslContext, options);
 
     if (_verifyPeer)
     {
@@ -783,14 +819,14 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
 
         if (_certificateVerifyFunction != NULL)
         {
-            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: certificate verification callback specified");
             SSL_CTX_set_verify(sslContext,
                 SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE, prepareForCallback);
         }
         else
         {
-            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: Trust Store specified");
             SSL_CTX_set_verify(sslContext,
                 SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE |
@@ -810,7 +846,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
     // Check if there is CA certificate file or directory specified. If
     // specified, and is not empty, load the certificates from the Trust store.
     //
-    if (_trustStore != String::EMPTY)
+    if (_trustStore.size() != 0)
     {
         //
         // The truststore may be a single file of CA certificates OR
@@ -823,12 +859,12 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         //
         if (FileSystem::isDirectory(_trustStore))
         {
-            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
                             "---> SSL: Truststore is a directory");
             //
             // load certificates from the trust store
             //
-            PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: Loading certificates from the trust store: %s",
                 (const char*)_trustStore.getCString()));
 
@@ -842,6 +878,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                 MessageLoaderParms parms(
                     "Common.SSLContext.COULD_NOT_LOAD_CERTIFICATES",
                     "Could not load certificates in to trust store.");
+                SSL_CTX_free(sslContext);
+                sslContext = NULL;
                 PEG_METHOD_EXIT();
                 throw SSLException(parms);
             }
@@ -863,7 +901,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                 //
                 // load certificates from the trust store
                 //
-                PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+                PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
                     "---> SSL: Loading certificates from the trust store: %s",
                     (const char*)_trustStore.getCString()));
 
@@ -878,6 +916,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                     MessageLoaderParms parms(
                         "Common.SSLContext.COULD_NOT_LOAD_CERTIFICATES",
                         "Could not load certificates in to trust store.");
+                    SSL_CTX_free(sslContext);
+                    sslContext = NULL;
                     PEG_METHOD_EXIT();
                     throw SSLException(parms);
                 }
@@ -894,7 +934,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         }
     }
 
-    if (_crlPath != String::EMPTY)
+    if (_crlPath.size() != 0)
     {
         // need to save this -- can we make it static since there's only
         // one CRL for cimserver?
@@ -903,6 +943,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         _crlStore.reset(X509_STORE_new());
         if (_crlStore.get() == NULL)
         {
+            SSL_CTX_free(sslContext);
+            sslContext = NULL;
             PEG_METHOD_EXIT();
             throw PEGASUS_STD(bad_alloc)();
         }
@@ -911,7 +953,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         // during server startup
         if (FileSystem::isDirectory(_crlPath))
         {
-            PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: CRL store is a directory in %s",
                 (const char*)_crlPath.getCString()));
 
@@ -922,6 +964,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                     "Common.SSLContext.COULD_NOT_LOAD_CRLS",
                     "Could not load certificate revocation list.");
                 _crlStore.reset();
+                SSL_CTX_free(sslContext);
+                sslContext = NULL;
                 PEG_METHOD_EXIT();
                 throw SSLException(parms);
             }
@@ -934,7 +978,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         }
         else
         {
-            PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: CRL store is the file %s",
                 (const char*)_crlPath.getCString()));
 
@@ -945,6 +989,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                     "Common.SSLContext.COULD_NOT_LOAD_CRLS",
                     "Could not load certificate revocation list.");
                 _crlStore.reset();
+                SSL_CTX_free(sslContext);
+                sslContext = NULL;
                 PEG_METHOD_EXIT();
                 throw SSLException(parms);
             }
@@ -952,7 +998,7 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
             X509_LOOKUP_load_file(
                 pLookup, (const char*)_crlPath.getCString(), X509_FILETYPE_PEM);
 
-            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: Successfully configured CRL file");
         }
     }
@@ -964,12 +1010,12 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
     // certificate) specified. If specified, validate and load the
     // certificate.
     //
-    if (_certPath != String::EMPTY)
+    if (_certPath.size() != 0)
     {
         //
         // load the specified server certificates
         //
-        PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+        PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
             "---> SSL: Loading server certificate from: %s",
             (const char*)_certPath.getCString()));
 
@@ -983,6 +1029,9 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                 "Common.SSLContext.COULD_NOT_ACCESS_SERVER_CERTIFICATE",
                 "Could not access server certificate in $0.",
                 (const char*)_certPath.getCString());
+
+            SSL_CTX_free(sslContext);
+            sslContext = NULL;
             PEG_METHOD_EXIT();
             throw SSLException(parms);
         }
@@ -994,9 +1043,9 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
         // As of 2.4, if a keyfile is specified, its location is verified
         // during server startup and will throw an error if the path is invalid.
         //
-        if (_keyPath == String::EMPTY)
+        if (_keyPath.size() == 0)
         {
-            PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+            PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
                 "---> SSL: Key file empty, loading private key from "
                 "certificate file: %s",(const char*)_certPath.getCString()));
             //
@@ -1007,6 +1056,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
                 MessageLoaderParms parms(
                     "Common.SSLContext.COULD_NOT_GET_PRIVATE_KEY",
                     "Could not get private key.");
+                SSL_CTX_free(sslContext);
+                sslContext = NULL;
                 PEG_METHOD_EXIT();
                 throw SSLException(parms);
             }
@@ -1019,9 +1070,9 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
     // private key) specified and the key was not already loaded.
     // If specified, validate and load the key.
     //
-    if (_keyPath != String::EMPTY && !keyLoaded)
+    if (_keyPath.size() != 0 && !keyLoaded )
     {
-        PEG_TRACE((TRC_SSL, Tracer::LEVEL3,
+        PEG_TRACE((TRC_SSL, Tracer::LEVEL4,
             "---> SSL: loading private key from: %s",
             (const char*)_keyPath.getCString()));
         //
@@ -1032,6 +1083,8 @@ SSL_CTX* SSLContextRep::_makeSSLContext()
             MessageLoaderParms parms(
                 "Common.SSLContext.COULD_NOT_GET_PRIVATE_KEY",
                 "Could not get private key.");
+            SSL_CTX_free(sslContext);
+            sslContext = NULL;
             PEG_METHOD_EXIT();
             throw SSLException(parms);
         }
@@ -1198,25 +1251,26 @@ void SSLContextRep::validateCertificate()
 //
 
 SSLContextRep::SSLContextRep(
-    const String& trustStore,
-    const String& certPath,
-    const String& keyPath,
-    const String& crlPath,
-    SSLCertificateVerifyFunction* verifyCert,
-    const String& randomFile,
-    const String& cipherSuite)
+    const String&,
+    const String&,
+    const String&,
+    const String&,
+    SSLCertificateVerifyFunction*,
+    const String&,
+    const String&,
+    const Boolean&)
 {
 }
 
-SSLContextRep::SSLContextRep(const SSLContextRep& sslContextRep) {}
+SSLContextRep::SSLContextRep(const SSLContextRep&) {}
 
 SSLContextRep::~SSLContextRep() {}
 
 SSL_CTX* SSLContextRep::_makeSSLContext() { return 0; }
 
 Boolean SSLContextRep::_verifyPrivateKey(
-    SSL_CTX *ctx,
-    const String& keyPath)
+    SSL_CTX*,
+    const String&)
 {
     return false;
 }
@@ -1242,7 +1296,7 @@ SharedPtr<X509_STORE, FreeX509STOREPtr> SSLContextRep::getCRLStore() const
     return SharedPtr<X509_STORE, FreeX509STOREPtr>();
 }
 
-void SSLContextRep::setCRLStore(X509_STORE* store) { }
+void SSLContextRep::setCRLStore(X509_STORE*) { }
 
 Boolean SSLContextRep::isPeerVerificationEnabled() const { return false; }
 
@@ -1275,7 +1329,8 @@ SSLContext::SSLContext(
         String::EMPTY,
         verifyCert,
         randomFile,
-        String::EMPTY);
+        String::EMPTY,
+        false);
 }
 
 SSLContext::SSLContext(
@@ -1319,7 +1374,8 @@ SSLContext::SSLContext(
         const String& crlPath,
         SSLCertificateVerifyFunction* verifyCert,
         const String& randomFile,
-        const String& cipherSuite)
+        const String& cipherSuite,
+        const Boolean& sslCompatibility)
 {
 #ifndef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
     if (crlPath.size() > 0)
@@ -1331,8 +1387,8 @@ SSLContext::SSLContext(
     }
 #endif
     _rep = new SSLContextRep(
-        trustStore, certPath, keyPath, crlPath, verifyCert, randomFile, 
-        cipherSuite);
+        trustStore, certPath, keyPath, crlPath, verifyCert, randomFile,
+        cipherSuite,sslCompatibility);
 }
 #endif
 
@@ -1342,7 +1398,7 @@ SSLContext::SSLContext(
     const String& certPath,
     const String& keyPath,
     SSLCertificateVerifyFunction* verifyCert,
-    String trustStoreUserName,
+    String,
     const String& randomFile)
 {
     _rep = new SSLContextRep(

@@ -77,8 +77,6 @@ static Boolean verbose;
 
 static const CIMNamespaceName __NAMESPACE_NAMESPACE = CIMNamespaceName ("root");
 
-static const char programVersion[] =  "1.0";
-
 // Property Names for __Namespace Class
 static const CIMName NAMESPACE_PROPERTYNAME  = CIMName ("Name");
 static const CIMNamespaceName ROOTNS  = CIMNamespaceName ("root");
@@ -2491,10 +2489,11 @@ void InteropTest::testObjectManagerClass()
             {
                 try
                 {
-                Array <CIMObjectPath> paths = _client.enumerateInstanceNames(
-                        namespaceList[i],
-                        CIM_OBJECTMANAGER_CLASSNAME);
-                PEGASUS_TEST_ASSERT(paths.size() == 0);
+                    Array <CIMObjectPath> paths =
+                        _client.enumerateInstanceNames(
+                            namespaceList[i],
+                            CIM_OBJECTMANAGER_CLASSNAME);
+                    PEGASUS_TEST_ASSERT(paths.size() == 0);
                 }
                 // Catch block for this enum test.  We test class not exist.
                 catch(CIMException& e)
@@ -2502,9 +2501,9 @@ void InteropTest::testObjectManagerClass()
                     if ((e.getCode() != CIM_ERR_INVALID_CLASS) &&
                             (e.getCode() != CIM_ERR_NOT_SUPPORTED))
                     {
-                        cout << " CIMException " << e.getMessage()
+                        cout << "Unexpected CIMException " << e.getMessage()
                             << "namespace " << namespaceList[i].getString()
-                            << "EnumerateInstances of CIMObjectManager "
+                            << " EnumerateInstances of CIMObjectManager "
                             << endl;
                         errFound = true;
                     }
@@ -2513,15 +2512,18 @@ void InteropTest::testObjectManagerClass()
                 {
                     errFound= true;
                     cout <<
-                        "Exception in look for cimobject manager"
-                        " in strange places "
+                        "Unexpected Exception in look for cimobject manager "
+                            "in Namespace "
+                        << namespaceList[i].getString() << ". " 
                         << e.getMessage() << endl;
                 }
                 catch(...)
                 {
                     errFound = true;
-                    cout << "Exception in look for cimobject manager "
-                        "in strange places" << endl;
+                    cout << "Unexpected Exception in look for cimobject"
+                            " manager in namespace "
+                        << namespaceList[i].getString()
+                        << endl;
                 }
             }
         }
@@ -3336,7 +3338,6 @@ int main(int argc, char** argv)
     verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
 
     pgmName = argv[0];
-    Boolean showNamespaces = false;
     if (argc > 1)
     {
         String cmd = argv[1];

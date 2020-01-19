@@ -149,6 +149,18 @@ Sint32 Socket::read(SocketHandle socket, void* ptr, Uint32 size)
 #endif
 }
 
+Sint32 Socket::peek(SocketHandle socket, void* ptr, Uint32 size)
+{
+    #ifdef PEGASUS_OS_TYPE_WINDOWS
+    return ::recv(socket, (char*)ptr, size, MSG_PEEK);
+    #else
+    int status;
+    PEGASUS_RETRY_SYSTEM_CALL(::recv(socket, (char*)ptr, size, MSG_PEEK),
+            status);
+    return status;
+    #endif
+}
+
 Sint32 Socket::write(SocketHandle socket, const void* ptr, Uint32 size)
 {
 #ifdef PEGASUS_OS_TYPE_WINDOWS
@@ -314,14 +326,10 @@ inline void _setTCPNoDelay(SocketHandle socket)
    int opt = 1;
    setsockopt(socket, IPPROTO_TCP, TCP_NODELAY, (char*)&opt, sizeof(opt));
 }
-//------------------------------------------------------------------------------
-//
-// _setInformIfNewTCPIP()
-//
-//------------------------------------------------------------------------------
+
+#ifdef PEGASUS_OS_ZOS
 inline void _setInformIfNewTCPIP(SocketHandle socket)
 {
-#ifdef PEGASUS_OS_ZOS
    // This function enables the notification of the CIM Server that a new
    // TCPIP transport layer is active. This is needed to be aware of a
    // restart of the transport layer. When this option is in effect,
@@ -335,8 +343,12 @@ inline void _setInformIfNewTCPIP(SocketHandle socket)
        SO_EioIfNewTP,
        (char*)&NewTcpipOn,
        sizeof(NewTcpipOn));
-#endif
 }
+#else
+inline void _setInformIfNewTCPIP(SocketHandle)
+{
+}
+#endif
 
 
 SocketHandle Socket::createSocket(int domain, int type, int protocol)
@@ -348,7 +360,9 @@ SocketHandle Socket::createSocket(int domain, int type, int protocol)
         return socket(domain,type,protocol);
     }
 
+#ifdef PEGASUS_OS_ZOS
     bool sendTcpipMsg = true;
+#endif
 
     while (1)
     {

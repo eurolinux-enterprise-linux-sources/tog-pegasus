@@ -38,7 +38,7 @@
 
 #include <Pegasus/Security/Authentication/Linkage.h>
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
 #include <Pegasus/Common/AuthenticationInfo.h>
 #endif
 
@@ -63,9 +63,9 @@ public:
         @param authHeader String containing the Authorization header
         @param authInfo Reference to AuthenticationInfo object that holds the
         authentication information for the given connection.
-        @return true on successful authentication, false otherwise
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean performHttpAuthentication(
+    AuthenticationStatus performHttpAuthentication(
         const String& authHeader,
         AuthenticationInfo* authInfo);
 
@@ -73,18 +73,22 @@ public:
         @param authHeader String containing the Authorization header
         @param authInfo Reference to AuthenticationInfo object that holds the
         authentication information for the given connection.
-        @return true on successful authentication, false otherwise
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean performPegasusAuthentication(
+    AuthenticationStatus performPegasusAuthentication(
         const String& authHeader,
         AuthenticationInfo* authInfo);
 
     /** Validates whether the user is a valid user for requests
         from HTTP connections.
         @param  userName  name of the user
-        @return true on successful validation, false otherwise
+        @param authInfo Reference to AuthenticationInfo object that holds the
+        authentication information for the given connection.
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean validateUserForHttpAuth (const String& userName);
+    AuthenticationStatus validateUserForHttpAuth(
+        const String& userName,
+        AuthenticationInfo* authInfo);
 
     /** Constructs the Pegasus Local authentication challenge header.
         @param authHeader String containing the Authorization header
@@ -99,15 +103,14 @@ public:
     /** Constructs the HTTP authentication challenge header.
         @return String containing the authentication challenge
     */
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    String AuthenticationManager::getHttpAuthResponseHeader(
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    String getHttpAuthResponseHeader(
         AuthenticationInfo* authInfo = 0);
 #else
     String getHttpAuthResponseHeader();
 #endif
 
-    static Boolean isRemotePrivilegedUserAccessAllowed(
-        String & userName);
+    static Boolean isRemotePrivilegedUserAccessAllowed( String & userName);
 
 private:
 

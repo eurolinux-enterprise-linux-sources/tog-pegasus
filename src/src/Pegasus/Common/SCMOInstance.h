@@ -27,6 +27,13 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
+// This code implements part of PEP#348 - The CMPI infrastructure using SCMO
+// (Single Chunk Memory Objects).
+// The design document can be found on the OpenPegasus website openpegasus.org
+// at https://collaboration.opengroup.org/pegasus/pp/documents/21210/PEP_348.pdf
+//
+// This file defines the SCMOInstance interfaces. The implementation of
+// these methods is in SCMO.cpp
 //%/////////////////////////////////////////////////////////////////////////////
 
 #ifndef _SCMOINSTANCE_H_
@@ -40,6 +47,8 @@
 #include <Pegasus/Common/Union.h>
 
 PEGASUS_NAMESPACE_BEGIN
+
+PEGASUS_USING_STD;
 
 #define PEGASUS_SCMB_INSTANCE_MAGIC 0xD00D1234
 
@@ -125,10 +134,6 @@ public:
      * instance.  The TOINSTANCE flavor is ignored.
      * @param includeClassOrigin A Boolean indicating whether ClassOrigin
      * attributes are to be added to the instance.
-     * @param propertyList Is an NULL terminated array of char* to property
-     * names defining the properties that are included in the created instance.
-     * If the propertyList is NULL, all properties are included to the instance.
-     * If the propertyList is empty, no properties are added.
      *
      * Note that this function does NOT generate an error if a property name
      * is supplied that is NOT in the class;
@@ -138,8 +143,7 @@ public:
     SCMOInstance(
         SCMOClass& baseClass,
         Boolean includeQualifiers,
-        Boolean includeClassOrigin,
-        const char** propertyList);
+        Boolean includeClassOrigin);
 
     /**
      * Builds a SCMOInstance from the given SCMOClass and copies all
@@ -289,12 +293,13 @@ public:
         Boolean& isArray,
         Uint32& size ) const;
 
-    void getSCMBValuePropertyAt(
-        Uint32 pos,
-        SCMBValue** value,
-        const char ** valueBase,
-        SCMBClassProperty ** propDef,
-        const char ** classBase) const;
+    // KS_FUTURE removed this as not used. Compiles without it
+////  void getSCMBValuePropertyAt(
+////      Uint32 pos,
+////      SCMBValue** value,
+////      const char ** valueBase,
+////      SCMBClassProperty ** propDef,
+////      const char ** classBase) const;
 
     /**
      * Gets the type and value of the named property.
@@ -337,14 +342,19 @@ public:
 
     /**
      * Set/replace a property in the instance.
-     * If the class origin is specified, it is honored at identifying
-     * the property within the instance.
+     * If the class origin is specified, it is honored when the
+     * property is identified within the instance.
+     *
      * Note: Only properties which are already part of the instance/class can
-     * be set/replaced.
+     * be set/replaced except in for special case where the flag
+     * lags.noClassForInstance is set when the instance is created.
+     * If the class is not found in the repository, the instance is
+     * are marked as noClassForInstance and properties are set in
+     * the UserDefined properties area.
      * @param name The name of the property to be set.
-     * @param type The CIMType of the property
+     * @param theType The CIMType of the property
      * @param value A pointer to the value to be set at the named property.
-     *              The value has to be in a SCMBUnion.
+     *              The value must be in a SCMBUnion.
      *              The value is copied into the instance
      *              If the value == NULL, a null value is assumed.
      *              If the value is an array, the value array has to be
@@ -358,14 +368,15 @@ public:
      *              If the value is type of CIMTYPE_STRING,
      *              the string is referenced by the structure
      *              SCMBUnion.extString:
-     *                       pchar contains the absolut pointer to the string
-     *                       length contains the size of the string
+     *                       pchar contains the absolute pointer to
+     *                       the string length contains the size of
+     *                       the string
      *                              without trailing '\0'.
      * @param isArray Indicate that the value is an array. Default false.
      * @param size Returns the size of the array. If not an array this
-     *         this parameter is ignorer. Default 0.
+     *         this parameter is ignored. Default 0.
      * @param origin The class originality of the property.
-     *               If NULL, then it is ignorred. Default NULL.
+     *               If NULL, then it is ignored. Default NULL.
      * @return     SCMO_OK
      *             SCMO_NOT_SAME_ORIGIN : The property name was found, but
      *                                    the origin was not the same.
@@ -376,7 +387,7 @@ public:
      */
     SCMO_RC setPropertyWithOrigin(
         const char* name,
-        CIMType type,
+        CIMType theType,
         const SCMBUnion* value,
         Boolean isArray=false,
         Uint32 size = 0,
@@ -388,7 +399,7 @@ public:
      * @exception NoSuchProperty
      */
     void buildKeyBindingsFromProperties();
-    
+
     /**
      * Gets the hash index for the named property. Filtering is ignored.
      * @param theName The property name
@@ -399,6 +410,8 @@ public:
      */
     SCMO_RC getPropertyNodeIndex(const char* name, Uint32& pos) const;
 
+    // KS_FUTURE confirm that the following is used in OpenPegasus
+    // Apprently never referenced within any of OpenPegasus code
     /**
      * Set/replace a property in the instance at node index.
      * @param index The node index.
@@ -578,9 +591,9 @@ public:
     /**
      * Determines if the SCMOInstance does not contain any property information.
      * Maybe only the class name and/or name space are available.
-     * @return True if the SCMOInstacne is empty, false otherwise.
+     * @return True if the SCMOInstance is empty, false otherwise.
      */
-    Boolean isEmpty( ) const {return (inst.hdr->theClass.ptr->isEmpty()); };
+    Boolean isEmpty( ) const;
 
     /**
      * Determines whether the instance is used as a class container.
@@ -708,6 +721,15 @@ public:
         return inst.hdr->flags.isCompromised;
     };
 
+    /**
+        returns true if there is no class defined for this instance.
+        The flag is set when the SCMO instance is created and the
+        repository returns no class.
+    */
+    Boolean noClassForInstance() const
+    {
+        return inst.hdr->flags.noClassForInstance;
+    };
 
     /**
      * Mark the instance as a non validated instance.
@@ -715,6 +737,16 @@ public:
     void markAsCompromised()
     {
         inst.hdr->flags.isCompromised = true;
+    };
+
+    /**
+        Sets the flag indicating that there is no class for this
+        instance. This property is used for Instances that are
+        created where there is no class in the repository.
+    */
+    void markNoClassForInstance(Boolean x)
+    {
+        inst.hdr->flags.noClassForInstance = x;
     };
 
     /**
@@ -788,7 +820,7 @@ private:
     {
         if (inst.hdr->refCount.decAndTestIfZero())
         {
-            // All external references has to be destroyed.
+            // All external references have to be destroyed.
             _destroyExternalReferences();
             // The class has also be dereferenced.
             delete inst.hdr->theClass.ptr;
@@ -809,7 +841,7 @@ private:
             _clone();
             if (oldRef->refCount.decAndTestIfZero())
             {
-                // All external references has to be destroyed.
+                // All external references have to be destroyed.
                 _destroyExternalReferencesInternal(oldMgmt);
                 // The class has also be dereferenced.
                 delete oldRef->theClass.ptr;
@@ -833,6 +865,8 @@ private:
 
     void _setCIMInstance(const CIMInstance& cimInstance);
 
+    // Internal but used by friend class SCMOXmlWriter.cpp
+    // This function accounts for user-defined and class-defined properties
     void _getPropertyAt(
         Uint32 pos,
         SCMBValue** value,
@@ -945,7 +979,7 @@ private:
         char* elementBase);
     /**
      * Set a SCMO user defined key binding using the class CIM type tolerating
-     * CIM key binding types converted to CIM types by fuction
+     * CIM key binding types converted to CIM types by function
      *  _CIMTypeFromKeyBindingType().
      *
      * @parm classType The type of the key binding in the class definition
@@ -974,7 +1008,51 @@ private:
         SCMBKeyBindingValue& scmoKBV
         );
 
+    // Functions to support the use of user defined properties
+    /*
+        Get the node for a user defined property.
+        @return node of the property and SCMO_OK or an error
+        SCMO_NOT_FOUND indicating that the property cannot be
+        found as a user-defined property.
+    */
+    SCMO_RC _getUserPropertyNodeIndex(Uint32& node, const char* name) const;
 
+    /*
+        get the Instance SCMBUserPropertyElement for the defined node index.
+    */
+    SCMBUserPropertyElement*
+         _getUserDefinedPropertyElementAt(Uint32 index) const;
+
+    void _setPropertyInUserDefinedElement(
+        SCMBUserPropertyElement* ptrNewElement,
+        CIMType theType,
+        const SCMBUnion* pinVal,
+        Boolean isArray,
+        Uint32 size);
+    /**
+        Creates a new user-defined property element, chains it to
+        the existing user-defined property chain, and populate it
+        with name, type, isArray. isSet = false.
+        @return pointer to new SCMBUserPropertyElement
+    */
+    SCMBUserPropertyElement* _createNewUserDefinedProperty(
+        const char * name,
+        Uint32 nameLen,
+        CIMType theType);
+
+    /*
+        Returns true if the Property is in the set of
+        properties defined in an including class
+    */
+    Boolean _isClassDefinedProperty(Uint32 node) const;
+
+    SCMBValue& _getSCMBValueForNode(Uint32 node) const;
+
+    /* Definition of inst. Pointer to:
+            SCMBInstance_Manin
+            SCMBMgmt_Header
+            or generic base pointer.
+    */
     union{
         // To access the instance main structure
         SCMBInstance_Main *hdr;
@@ -990,49 +1068,101 @@ private:
     friend class SCMOStreamer;
 };
 
+
+inline SCMBValue& SCMOInstance::_getSCMBValueForNode(Uint32 node) const
+{
+    if (_isClassDefinedProperty(node))
+    {
+        SCMBValue *theInstPropNodeArray =
+            (SCMBValue*)&(inst.base[inst.hdr->propertyArray.start]);
+
+        return theInstPropNodeArray[node];
+    }
+
+    SCMBUserPropertyElement* pElement =
+       _getUserDefinedPropertyElementAt(node);
+
+    return pElement->value;
+}
+
+
+// KS_TODO clarify this test since our rule is more explicit
+// We cannot have both user-defined and class-defined properties so this
+// could be a more concrete tests.
+inline Boolean SCMOInstance::_isClassDefinedProperty(Uint32 node) const
+{
+    return (node < inst.hdr->numberProperties);
+}
+
+// This internal function used by SCMOXmlWriter.cpp
+// It is inline because it is called only once in the CIMServer.
 inline void SCMOInstance::_getPropertyAt(
     Uint32 pos,
     SCMBValue** value,
     const char ** valueBase,
-    SCMBClassProperty ** propDef) const
+    SCMBClassProperty ** propertyDef) const
 {
-    SCMBValue* theInstPropNodeArray =
-        (SCMBValue*)&(inst.base[inst.hdr->propertyArray.start]);
-
-    // create a pointer to property node array of the class.
-    Uint64 idx = inst.hdr->theClass.ptr->cls.hdr->propertySet.nodeArray.start;
-    SCMBClassPropertyNode* theClassPropNodeArray =
-        (SCMBClassPropertyNode*)&(inst.hdr->theClass.ptr->cls.base)[idx];
-
-    // return the absolute pointer to the property definition
-    *propDef= &(theClassPropNodeArray[pos].theProperty);
-
-    // need check if property set or not, if not set use the default value
-    if (theInstPropNodeArray[pos].flags.isSet)
+    if (_isClassDefinedProperty(pos))
     {
-        // return the absolute pointer to the property value in the instance
-        *value = &(theInstPropNodeArray[pos]);
+        SCMBValue *theInstPropNodeArray =
+            (SCMBValue*)&(inst.base[inst.hdr->propertyArray.start]);
+
+        // create a pointer to property node array of the class.
+        Uint64 idx =
+            inst.hdr->theClass.ptr->cls.hdr->propertySet.nodeArray.start;
+        SCMBClassPropertyNode* theClassPropNodeArray =
+            (SCMBClassPropertyNode*)&(inst.hdr->theClass.ptr->cls.base)[idx];
+
+        // return the absolute pointer to the property definition
+        *propertyDef = &(theClassPropNodeArray[pos].theProperty);
+
+        // need check if property set or not, if not set use the default value
+        if (theInstPropNodeArray[pos].flags.isSet)
+        {
+            // return the absolute pointer to the property value in the instance
+            *value = &(theInstPropNodeArray[pos]);
+            *valueBase = inst.base;
+        }
+        else
+        {
+            // return the absolute pointer to
+            *value = &(theClassPropNodeArray[pos].theProperty.defaultValue);
+            *valueBase = inst.hdr->theClass.ptr->cls.base;
+        }
+    }
+    else           // User-defined property
+    {
+        // KS_TODO mostly same code as _getPropertyAtNodeIndex
+        SCMBUserPropertyElement* pElement =
+            _getUserDefinedPropertyElementAt(pos);
+
+        PEGASUS_ASSERT(pElement != 0);
+
+        *value = &(pElement->value);
+        // KS_TODO do we have to deal with isSet == false here. Probably
+        // no but confirm with Assert.
         *valueBase = inst.base;
     }
-    else
-    {
-        // return the absolute pointer to
-        *value = &(theClassPropNodeArray[pos].theProperty.defaultValue);
-        *valueBase = inst.hdr->theClass.ptr->cls.base;
-    }
 }
 
-inline void SCMOInstance::getSCMBValuePropertyAt(
-    Uint32 pos,
-    SCMBValue** value,
-    const char ** valueBase,
-    SCMBClassProperty ** propDef,
-    const char ** propDefBase) const
+inline Uint32 SCMOInstance::getPropertyCount() const
 {
-    _getPropertyAt(pos,value,valueBase,propDef);
-
-    *propDefBase = inst.hdr->theClass.ptr->cls.base;
+    return(inst.hdr->numberProperties + inst.hdr->numberUserProperties);
 }
+
+// KS_FUTURE Remove this completely from code since apparently not used.
+////// Apparently never used.
+////inline void SCMOInstance::getSCMBValuePropertyAt(
+////    Uint32 pos,
+////    SCMBValue** value,
+////    const char ** valueBase,
+////    SCMBClassProperty ** propDef,
+////    const char ** propDefBase) const
+////{
+////    _getPropertyAt(pos,value,valueBase,propDef);
+////
+////    *propDefBase = inst.hdr->theClass.ptr->cls.base;
+////}
 
 inline SCMO_RC SCMOInstance::getKeyBindingAtUnresolved(
         Uint32 node,
@@ -1050,6 +1180,21 @@ inline SCMO_RC SCMOInstance::getKeyBindingAtUnresolved(
     }
     *valueBase = inst.base;
     return rc;
+}
+
+inline Boolean SCMOInstance::isEmpty( ) const
+{
+    if (noClassForInstance())
+    {
+        // KS_TODO need another test for empty. Number properties
+        // != 0 might work but that would disallow an empty embedded
+        // instance.
+        return false;
+    }
+    else
+    {
+        return (inst.hdr->theClass.ptr->isEmpty());
+    }
 }
 
 

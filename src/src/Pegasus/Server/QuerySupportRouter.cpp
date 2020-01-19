@@ -39,48 +39,83 @@
 
 PEGASUS_NAMESPACE_BEGIN
 
+// Call the appropriate handleQueryRequest handler for the defined
+// query language type or return false if the language type not supported.
 Boolean QuerySupportRouter::routeHandleExecQueryRequest(
     CIMOperationRequestDispatcher* opThis,
-    CIMExecQueryRequestMessage* msg)
+    CIMExecQueryRequestMessage* msg,
+    CIMException& cimException,
+    EnumerationContext* enumerationContext)
 {
+    bool rtnStat = false;
     if (msg->queryLanguage=="WQL")
-        ((WQLOperationRequestDispatcher*)opThis)->handleQueryRequest(msg);
+    {
+        rtnStat = ((WQLOperationRequestDispatcher*)opThis)->handleQueryRequest(
+             msg,
+             cimException,
+             enumerationContext);
+    }
 #ifdef PEGASUS_ENABLE_CQL
     else if(msg->queryLanguage == "DMTF:CQL")
-        ((CQLOperationRequestDispatcher*)opThis)->handleQueryRequest(msg);
+    {
+        rtnStat = ((CQLOperationRequestDispatcher*)opThis)->handleQueryRequest(
+            msg,
+            cimException,
+            enumerationContext);
+    }
 #endif
-    else return false;
+    else
+    {
+        if (msg->operationContext.contains(
+                SubscriptionFilterConditionContainer::NAME))
+        {
+            SubscriptionFilterConditionContainer sub_cntr =
+                msg->operationContext.get(
+                    SubscriptionFilterConditionContainer::NAME);
 
+            cimException = PEGASUS_CIM_EXCEPTION(
+                CIM_ERR_QUERY_LANGUAGE_NOT_SUPPORTED,
+                sub_cntr.getQueryLanguage());
+        }
+        else
+        {
+            cimException = PEGASUS_CIM_EXCEPTION(
+                CIM_ERR_QUERY_LANGUAGE_NOT_SUPPORTED, msg->queryLanguage);
+        }
+        return false;
+    }
+
+    if (!rtnStat)
+    {
+        return false;
+    }
     return true;
 }
 
-void QuerySupportRouter::routeHandleExecQueryResponseAggregation(
-    CIMOperationRequestDispatcher* opThis,
-    OperationAggregate* poA)
-{
-    if (poA->_queryLanguage=="WQL")
-        ((WQLOperationRequestDispatcher*)opThis)->
-            handleQueryResponseAggregation(poA);
-#ifdef PEGASUS_ENABLE_CQL
-    else if(poA->_queryLanguage == "DMTF:CQL")
-        ((CQLOperationRequestDispatcher*)opThis)->
-            handleQueryResponseAggregation(poA);
-#endif
-}
+// Get pointer to the correct function.  Note that since
+// the queryLanguage has already been tested in
+// routeHandleExecQueryRequest the assert should be unreachable.
 
-void QuerySupportRouter::routeApplyQueryToEnumeration(
-    CIMOperationRequestDispatcher* opThis,
-    CIMResponseMessage* msg,
-    QueryExpressionRep* query)
+applyQueryFunctionPtr QuerySupportRouter::getFunctPtr(
+   CIMOperationRequestDispatcher* opThis,
+   QueryExpressionRep* query)
 {
-    if (query->getQueryLanguage()=="WQL")
-        ((WQLOperationRequestDispatcher*)opThis)->
-            applyQueryToEnumeration(msg,query);
+    if (query->getQueryLanguage() == "WQL")
+    {
+        return &((WQLOperationRequestDispatcher*)opThis)->
+            applyQueryToEnumeration;
+    }
 #ifdef PEGASUS_ENABLE_CQL
     else if(query->getQueryLanguage() == "DMTF:CQL")
-        ((CQLOperationRequestDispatcher*)opThis)->
-            applyQueryToEnumeration(msg,query);
+    {
+        return &((CQLOperationRequestDispatcher*)opThis)->
+            applyQueryToEnumeration;
+    }
 #endif
+    else
+    {
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
+    }
 }
 
 PEGASUS_NAMESPACE_END

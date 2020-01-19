@@ -51,7 +51,7 @@ SoapResponse::SoapResponse(WsmResponse* response)
     WsmWriter::appendSoapBodyStart(_bodyStart);
     WsmWriter::appendSoapBodyEnd(_bodyEnd);
 
-    switch(response->getType())
+    switch(response->getOperationType())
     {
         case WS_TRANSFER_GET:
             action = WSM_ACTION_GET_RESPONSE;
@@ -124,17 +124,18 @@ SoapResponse::SoapResponse(WsmResponse* response)
         }
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
     }
 
     WsmWriter::appendHTTPResponseHeader(_httpHeader, action,
        response->getHttpMethod(), response->getOmitXMLProcessingInstruction(),
        response->getContentLanguages(),
-       response->getType() == WSM_FAULT || response->getType() == SOAP_FAULT,
-       0);
+       response->getOperationType() == WSM_FAULT || 
+           response->getOperationType() == SOAP_FAULT,0);
 
     // Make sure that fault response fits within MaxEnvelopeSize
-    if (response->getType() == WSM_FAULT || response->getType() == SOAP_FAULT)
+    if (response->getOperationType() == WSM_FAULT || 
+        response->getOperationType() == SOAP_FAULT)
     {
         if (_maxEnvelopeSize && getEnvelopeSize() > _maxEnvelopeSize)
         {

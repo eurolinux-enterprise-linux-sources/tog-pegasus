@@ -73,10 +73,10 @@ public:
 
     /**
         In this specialization of isActive a check is performed on the
-        non-blocking socket to see if it is active by reading 1 byte. Since the 
+        non-blocking socket to see if it is active by reading 1 byte. Since the
         current thread is processing the request, its safe to try to read 1 byte
-        from the socket as there should be no data on the socket. If read 
-        returns a message of size zero, it is an indication that the client has 
+        from the socket as there should be no data on the socket. If read
+        returns a message of size zero, it is an indication that the client has
         closed the connection and the socket at the server end can be closed.
     */
     virtual Boolean isActive();
@@ -97,7 +97,7 @@ public:
     */
     Boolean isResponsePending();
 
-    Boolean run(Uint32 milliseconds);
+    Boolean run();
 
     HTTPAcceptor& getOwningAcceptor()
     {
@@ -114,16 +114,16 @@ public:
 
     Boolean closeConnectionOnTimeout(struct timeval* timeNow);
 
-    // This method is called in Client code to decide reconnection with 
-    // the Server and can also be used in the server code to check if the 
+    // This method is called in Client code to decide reconnection with
+    // the Server and can also be used in the server code to check if the
     // connection is still alive and take appropriate action.
     Boolean needsReconnect();
 
     // This method is called in Server code when response encoders or
-    // HTTPAuthenticatorDelegator runs out-of-memory. This method calls 
+    // HTTPAuthenticatorDelegator runs out-of-memory. This method calls
     // _handleWriteEvent() with a dummy HTTPMessage to maintain  response
     // chunk sequence properly. Once all responses are  arrived, connection
-    // is closed. Param "respMsgIndex" indicates the response index and 
+    // is closed. Param "respMsgIndex" indicates the response index and
     // isComplete indicates whether the response is complete or not.
     void handleInternalServerError(
         Uint32 respMsgIndex,
@@ -177,6 +177,7 @@ private:
     Sint32 _contentOffset;
     Sint32 _contentLength;
     Buffer _incomingBuffer;
+    Buffer _outgoingBuffer;
     SharedPtr<AuthenticationInfo> _authInfo;
 
     // _connectionRequestCount contains the number of

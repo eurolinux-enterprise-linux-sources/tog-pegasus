@@ -42,7 +42,6 @@
 PEGASUS_NAMESPACE_BEGIN
 
 static char LANGUAGE_TAG_SEPARATOR_CHAR = '-';
-static char LOCALE_ID_SEPARATOR_CHAR = '_';
 
 AcceptLanguageList LanguageParser::parseAcceptLanguageHeader(
     const String& acceptLanguageHeader)
@@ -265,6 +264,7 @@ String LanguageParser::buildContentLanguageHeader(
 #ifdef PEGASUS_HAS_ICU
 String& LanguageParser::convertLocaleIdToLanguageTag(String& localeId)
 {
+    static char LOCALE_ID_SEPARATOR_CHAR = '_';
     Uint32 index = 0;
     while ((index = localeId.find(index, LOCALE_ID_SEPARATOR_CHAR)) !=
                 PEG_NOT_FOUND)
@@ -447,14 +447,23 @@ void LanguageParser::_parseLanguageSubtags(
         if (((i == 0) && !_isValidPrimarySubtagSyntax(subtags[i])) ||
             ((i > 0) && !_isValidSubtagSyntax(subtags[i])))
         {
+            // throw Exception(MessageLoader::getMessage(parms));
+            // do not localize message, requires a language tag for this
+            // localization can cause recursion here
+            // MessageLoaderParms::toString adds 5kb static code size, Do NOT
+            // include in non-debug builds
+#ifdef PEGASUS_DEBUG
             MessageLoaderParms parms(
                 "Common.LanguageParser.MALFORMED_LANGUAGE_TAG",
                 "Malformed language tag \"$0\".", languageTagString);
             PEG_METHOD_EXIT();
-            // throw Exception(MessageLoader::getMessage(parms));
-            // do not localize message, requires a language tag for this
-            // localization can cause recursion here
             throw Exception(parms.toString());
+#else
+            String malFormed("Malformed language tag:");
+            malFormed.append(languageTagString);
+            PEG_METHOD_EXIT();
+            throw Exception(malFormed);
+#endif
         }
     }
 

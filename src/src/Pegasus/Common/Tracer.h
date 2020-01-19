@@ -72,6 +72,7 @@ enum TraceComponentId
     TRC_OBJECTRESOLUTION,
     TRC_WQL,
     TRC_CQL,
+    TRC_FQL,
     TRC_THREAD,
     TRC_EXP_REQUEST_DISP,
     TRC_SSL,
@@ -89,9 +90,14 @@ enum TraceComponentId
     TRC_INDICATION_RECEIPT,
     TRC_CMPIPROVIDERINTERFACE,
     TRC_WSMSERVER,
+    TRC_RSSERVER,
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    TRC_WEBSERVER,
+#endif /* PEGASUS_ENABLE_PROTOCOL_WEB */
     TRC_LOGMSG,
     TRC_WMI_MAPPER_CONSUMER,
-    TRC_INTERNALPROVIDER
+    TRC_INTERNALPROVIDER,
+    TRC_ENUMCONTEXT
 };
 
 /** Token used for tracing functions.
@@ -241,6 +247,16 @@ public:
         @return true   if function was successfully.
     */
     static Boolean setTraceMemoryBufferSize(Uint32 bufferSize);
+
+    /** Set the Max trace File Size and used for the File tracing
+        @param maxLogFileSizeBytes size of cimserver.trc
+    */
+    static void setMaxTraceFileSize (const String &size);
+
+    /** Set the Max trace File number
+        @param maxLogFileNumber number of cimserver.trc in trace folder
+    */
+    static void setMaxTraceFileNumber(const String &numberOfFiles);
 
     /** Flushes the trace buffer to traceFilePath. This method will only
         have an effect when traceFacility=Memory.
@@ -526,6 +542,8 @@ inline void Tracer::flushTrace()
     // empty function
     return;
 }
+
+
 
 #endif /* PEGASUS_REMOVE_TRACE */
 

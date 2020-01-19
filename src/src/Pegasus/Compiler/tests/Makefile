@@ -32,6 +32,8 @@ include $(ROOT)/mak/config.mak
 
 DIRS = \
     CompAssoc \
-    InstAlias
+    InstAlias \
+    qualifierDecl \
+    invalidMOF
 
 include $(ROOT)/mak/recurse.mak

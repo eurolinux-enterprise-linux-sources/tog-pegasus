@@ -40,6 +40,7 @@ PEGASUS_USING_PEGASUS;
 PEGASUS_USING_STD;
 
 static Boolean verbose;
+#define VCOUT if (verbose) cout
 
 const String NAMESPACE = "root/test";
 const String CLASSNAME = "PG_ProviderModule";
@@ -48,7 +49,6 @@ const String CLASSNAME3 = "PG_ProviderCapabilities";
 
 Boolean TestLookupIndicationProvider(ProviderRegistrationManager & prmanager)
 {
-
     //
     // create Provider module instances
     //
@@ -215,6 +215,15 @@ Boolean TestLookupIndicationProvider(ProviderRegistrationManager & prmanager)
                                          providerIns,
                                          providerModuleIns))
     {
+        // check the result returned by getIndicationProviders
+        // base on the test data provided, there should be 2 provider instances
+        // returned for the input parameters :"test_namespace1, test_class1 and 
+        // requiredPropertyList(p1, p3, p4)"
+        // If the test data change, please also change this number accordingly.
+        if (providerIns.size() != 2)
+        {
+            return false;
+        }
         String _providerModuleName;
         String _providerModuleName2;
         for(Uint32 i = 0; i < providerIns.size() ; ++i)
@@ -231,6 +240,21 @@ Boolean TestLookupIndicationProvider(ProviderRegistrationManager & prmanager)
                 return false;
             }
         }
+        
+        // ensure getIndicationProviders return 2 different providers
+        String _providerName;
+        String _providerName2;
+        providerIns[0].getProperty(providerIns[0].findProperty(
+                CIMName ("Name"))).getValue().get(
+                    _providerName);
+        providerIns[1].getProperty(providerIns[1].findProperty(
+                CIMName ("Name"))).getValue().get(
+                    _providerName2);
+        if (String::equal(_providerName, _providerName2))
+        {
+            return false;
+        }
+        
         return true;
     }
     else
@@ -239,10 +263,49 @@ Boolean TestLookupIndicationProvider(ProviderRegistrationManager & prmanager)
     }
 }
 
-int main(int argc, char** argv)
+void TestLookupIndicationProviderFailures(
+    ProviderRegistrationManager & prmanager)
+{
+    VCOUT << "TestLookupIndicationProviderFailures" << endl;
+    Array <CIMInstance> providerIns;
+    Array <CIMInstance> providerModuleIns;
+
+    Array <CIMName> requiredProperties;
+    requiredProperties.append("p1");
+    requiredProperties.append("p3");
+    requiredProperties.append("p4");
+
+    CIMPropertyList requiredPropertyList(requiredProperties);
+
+    PEGASUS_TEST_ASSERT(!prmanager.getIndicationProviders(
+        "test_namespaceNotExist",
+        "test_class1",
+        requiredPropertyList,
+        providerIns,
+        providerModuleIns));
+
+    PEGASUS_TEST_ASSERT(!prmanager.getIndicationProviders("test_namespace1",
+        "test_classNotExist",
+        requiredPropertyList,
+        providerIns,
+        providerModuleIns));
+
+    // test with property that is not part of class.  NOTE: This test does
+    // pass today.
+    requiredProperties.append("ThisPropertyDoesNotExist");
+    requiredPropertyList.set(requiredProperties);
+
+    PEGASUS_TEST_ASSERT(prmanager.getIndicationProviders("test_namespace1",
+        "test_class1",
+        requiredPropertyList,
+        providerIns,
+        providerModuleIns));
+}
+
+int main(int, char** argv)
 {
     verbose = (getenv ("PEGASUS_TEST_VERBOSE")) ? true : false;
-    if (verbose) cout << argv[0] << ": started" << endl;
+    VCOUT << argv[0] << ": started" << endl;
 
     const char* tmpDir = getenv ("PEGASUS_TMP");
     String repositoryRoot;
@@ -260,12 +323,13 @@ int main(int argc, char** argv)
 
     try
     {
-    if (!TestLookupIndicationProvider(prmanager))
-    {
-        PEGASUS_STD(cerr) << "Error: lookupIndicationProvider Failed"
-            << PEGASUS_STD(endl);
-            exit (-1);
-    }
+        if (!TestLookupIndicationProvider(prmanager))
+        {
+            PEGASUS_STD(cerr) << "Error: lookupIndicationProvider Failed"
+                << PEGASUS_STD(endl);
+                exit (-1);
+        }
+        TestLookupIndicationProviderFailures(prmanager);
     }
 
     catch(Exception& e)

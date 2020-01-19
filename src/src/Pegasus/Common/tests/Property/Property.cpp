@@ -42,6 +42,8 @@ PEGASUS_USING_PEGASUS;
 PEGASUS_USING_STD;
 static Boolean verbose;         // controls test IO
 
+#define VCOUT if (verbose) cout
+
 void test01()
 {
     CIMProperty pnull;
@@ -250,6 +252,12 @@ void test03()
     names.append(CIMName ("property3"));
     list1.set(names);
     list2 = list1;
+
+    VCOUT << list1.toString() << endl;
+    VCOUT << list2.toString() << endl;
+    PEGASUS_TEST_ASSERT(list1.toString() == "property1, property2, property3");
+    PEGASUS_TEST_ASSERT(list2.toString() == "property1, property2, property3");
+
     Array<CIMName> names1a = list1.getPropertyNameArray();
     PEGASUS_TEST_ASSERT(names == names1a);
     PEGASUS_TEST_ASSERT(list2[0] == CIMName("property1"));
@@ -258,6 +266,11 @@ void test03()
 
     list1.clear();
     list2.clear();
+
+    VCOUT << list1.toString() << endl;
+    VCOUT << list2.toString() << endl;
+    PEGASUS_TEST_ASSERT(list1.toString() == "NULL");
+    PEGASUS_TEST_ASSERT(list2.toString() == "NULL");
 
     // Test use of empty list.  Note that the requirement for
     // property lists assumes that we must be able to distinguish
@@ -270,6 +283,65 @@ void test03()
     PEGASUS_TEST_ASSERT(list1.size() == 0);
     Array<CIMName> names3 = list1.getPropertyNameArray();
     PEGASUS_TEST_ASSERT(names3.size() == 0);
+    VCOUT << list1.toString() << endl;
+    PEGASUS_TEST_ASSERT(list1.toString() == "EMPTY");
+
+    // test contains(...) function, Pegasus 2.14
+    list1.clear();
+    names.append(CIMName ("property1"));
+    names.append(CIMName ("property2"));
+    names.append(CIMName ("property3"));
+    list1.set(names);
+    PEGASUS_TEST_ASSERT(list1.contains("property1"));
+    PEGASUS_TEST_ASSERT(list1.contains("property2"));
+    PEGASUS_TEST_ASSERT(list1.contains("property3"));
+    PEGASUS_TEST_ASSERT(!list1.contains("propertyx"));
+
+    // retest with list cleared to be sure that an
+    // empty list returns false
+    list1.clear();
+    PEGASUS_TEST_ASSERT(!list1.contains("property1"));
+    PEGASUS_TEST_ASSERT(!list1.contains("property2"));
+    PEGASUS_TEST_ASSERT(!list1.contains("property3"));
+    PEGASUS_TEST_ASSERT(!list1.contains("propertyx"));
+
+    // test with a list created with the Array<CIMName>
+    Array<CIMName> names4;
+    names4.append(CIMName ("property1"));
+    names4.append(CIMName ("property2"));
+    names4.append(CIMName ("property3"));
+    CIMPropertyList list3(names4);
+    PEGASUS_TEST_ASSERT(list3.contains("property1"));
+    PEGASUS_TEST_ASSERT(list3.contains("property2"));
+    PEGASUS_TEST_ASSERT(list3.contains("property3"));
+    PEGASUS_TEST_ASSERT(!list3.contains("propertyx"));
+
+    // test of useThisProperty
+    list1.clear();
+    names.append(CIMName ("property1"));
+    names.append(CIMName ("property2"));
+    names.append(CIMName ("property3"));
+    list1.set(names);
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property1"));
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property2"));
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property3"));
+    PEGASUS_TEST_ASSERT(!list1.useThisProperty("propertyx"));
+
+    // retest with list cleared to be sure that an
+    // cleared property list returns true for any property
+    list1.clear();
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property1"));
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property2"));
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("property3"));
+    PEGASUS_TEST_ASSERT(list1.useThisProperty("propertyx"));
+
+    // test for correct response with empty list
+    Array<CIMName> emptyArray;
+    list1.set(emptyArray);
+    PEGASUS_TEST_ASSERT(!list1.useThisProperty("property1"));
+    PEGASUS_TEST_ASSERT(!list1.useThisProperty("property2"));
+    PEGASUS_TEST_ASSERT(!list1.useThisProperty("property3"));
+    PEGASUS_TEST_ASSERT(!list1.useThisProperty("propertyx"));
 
 }
 
@@ -322,7 +394,6 @@ void test04()
     v1.get(pathout2);
     // Now compare the paths
 
-
     if(verbose)
         XmlWriter::printPropertyElement(p2, cout);
 }
@@ -359,7 +430,7 @@ void test05()
     PEGASUS_TEST_ASSERT(gotException);
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
     try

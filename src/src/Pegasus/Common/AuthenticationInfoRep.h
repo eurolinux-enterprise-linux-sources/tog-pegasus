@@ -38,10 +38,12 @@
 #include <Pegasus/Common/Sharable.h>
 #include <Pegasus/Common/Linkage.h>
 #include <Pegasus/Common/SSLContext.h>
+#include <Pegasus/Common/AuthHandle.h>
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-#include <Pegasus/Common/CIMKerberosSecurityAssociation.h>
-#endif
+
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+#include <Pegasus/Common/Negotiate.h>
+#endif //PEGASUS_NEGOTIATE_AUTHENTICATION
 
 PEGASUS_NAMESPACE_BEGIN
 
@@ -63,8 +65,9 @@ public:
     static const String AUTH_TYPE_SSL;
     static const String AUTH_TYPE_ZOS_LOCAL_DOMIAN_SOCKET;
     static const String AUTH_TYPE_ZOS_ATTLS;
+    static const String AUTH_TYPE_COOKIE;
 
-    AuthenticationInfoRep(Boolean flag);
+    AuthenticationInfoRep();
 
     ~AuthenticationInfoRep();
 
@@ -87,8 +90,7 @@ public:
     // steps.
 
     String getConnectionUser() const
-    {
-        return _connectionUser;
+    {        return _connectionUser;
     }
 
     void   setConnectionUser(const String& userName);
@@ -138,14 +140,13 @@ public:
         return _ipAddress;
     }
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    CIMKerberosSecurityAssociation* getSecurityAssociation() const
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    /** Get GSSAPI context for this connection. */
+    SharedPtr<NegotiateServerSession> getNegotiateSession()
     {
-        return _securityAssoc.get();
+        return _session;
     }
-
-    void setSecurityAssociation();
-#endif
+#endif //PEGASUS_NEGOTIATE_AUTHENTICATION
 
     Array<SSLCertificateInfo*> getClientCertificateChain()
     {
@@ -165,13 +166,52 @@ public:
         return _wasRemotePrivilegedUserAccessChecked;
     }
 
+    void setAuthHandle(const AuthHandle& authHandle)
+    {
+        _authHandle = authHandle;
+    }
+
+    AuthHandle getAuthHandle()
+    {
+        return _authHandle;
+    }
+
+    void setUserRole(const String& userRole)
+    {
+        _userRole = userRole;
+    }
+
+    String getUserRole()
+    {
+        return _userRole;
+    }
+
+    void setExpiredPassword(Boolean status)
+    {
+        _isExpiredPassword = status;
+    }
+
+    Boolean isExpiredPassword() const
+    {
+        return _isExpiredPassword;
+    }
+
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    void setCookie(const String &value)
+    {
+        _cookie = value;
+    }
+
+    String getCookie() const
+    {
+        return _cookie;
+    }
+#endif
+
 private:
 
-    /** Constructors  */
-    AuthenticationInfoRep();
-
+    /** Default Copy Constructor and assignment operator  */
     AuthenticationInfoRep(const AuthenticationInfoRep& x);
-
     AuthenticationInfoRep& operator=(const AuthenticationInfoRep& x);
 
     String  _authUser;
@@ -184,12 +224,21 @@ private:
     String  _authType;
     Boolean _connectionAuthenticated;
     String  _ipAddress;
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    AutoPtr<CIMKerberosSecurityAssociation> _securityAssoc;//PEP101
-#endif
+
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    SharedPtr<NegotiateServerSession> _session;
+#endif //PEGASUS_NEGOTIATE_AUTHENTICATION
+    
     Boolean _wasRemotePrivilegedUserAccessChecked;
 
     Array<SSLCertificateInfo*> _clientCertificate;
+
+    AuthHandle _authHandle;
+    String _userRole;
+    Boolean _isExpiredPassword;
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    String  _cookie;
+#endif
 };
 
 PEGASUS_NAMESPACE_END

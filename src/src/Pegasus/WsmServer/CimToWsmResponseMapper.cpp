@@ -145,7 +145,7 @@ WsmResponse* CimToWsmResponseMapper::mapToWsmResponse(
                     }
                     else
                     {
-                        PEGASUS_ASSERT(0);
+                        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                     }
                 }
                 else // association or reference response expected
@@ -181,7 +181,7 @@ WsmResponse* CimToWsmResponseMapper::mapToWsmResponse(
                         }
                         else
                         {
-                            PEGASUS_ASSERT(0);
+                            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                         }
                     }
                     else // references responses
@@ -211,7 +211,7 @@ WsmResponse* CimToWsmResponseMapper::mapToWsmResponse(
                         }
                         else
                         {
-                            PEGASUS_ASSERT(0);
+                            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                         }
                     }
                 }
@@ -226,7 +226,7 @@ WsmResponse* CimToWsmResponseMapper::mapToWsmResponse(
             }
 
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                 break;
         }
     }
@@ -327,7 +327,7 @@ WsmFault CimToWsmResponseMapper::mapCimExceptionToWsmFault(
         default:
             // Initialize to prevent uninitialized subcode error.
             subcode = WsmFault::wsman_InternalError;
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
     }
 
     return WsmFault(subcode, reason, languageList, faultDetail);
@@ -1110,7 +1110,7 @@ void CimToWsmResponseMapper::convertCimToWsmValue(
 
             default:
             {
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             }
         }
     }
@@ -1206,7 +1206,7 @@ void CimToWsmResponseMapper::convertCimToWsmValue(
             }
             default:
             {
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             }
         }
     }
@@ -1340,11 +1340,14 @@ void CimToWsmResponseMapper::convertCimToWsmDatetime(
         Uint32 year = 0, month = 0, day = 0, utcoff = 0,
             hrs = 0, mins = 0, secs = 0, msecs = 0;
         char sign;
-        int conversions = sscanf(cimStr,
-            "%4u%2u%2u%2u%2u%2u.%6u%c%3u",
-            &year, &month, &day, &hrs, &mins, &secs, &msecs, &sign, &utcoff);
-
-        PEGASUS_ASSERT(conversions == 9);
+        
+        PEGASUS_FCT_EXECUTE_AND_ASSERT(
+            9,
+            sscanf(
+                cimStr,
+                "%4u%2u%2u%2u%2u%2u.%6u%c%3u",
+                &year, &month, &day, &hrs, &mins, &secs, &msecs, &sign, &utcoff)
+            );
 
         if (utcoff == 0)
         {
@@ -1383,10 +1386,13 @@ void CimToWsmResponseMapper::convertCimToWsmDatetime(
         // Date
         Uint32 year = 0, month = 0, day = 0, utcoff = 0;
         char sign;
-        int conversions = sscanf(cimStr, "%4u%2u%2u******.******%c%3u",
-            &year, &month, &day, &sign, &utcoff);
-
-        PEGASUS_ASSERT(conversions == 5);
+        
+        PEGASUS_FCT_EXECUTE_AND_ASSERT(
+            5,
+            sscanf(
+                cimStr,
+                "%4u%2u%2u******.******%c%3u",
+                &year, &month, &day, &sign, &utcoff));
 
         if (utcoff == 0)
         {

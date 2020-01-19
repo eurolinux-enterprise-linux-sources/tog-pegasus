@@ -49,6 +49,7 @@
 #include <Pegasus/Common/StringConversion.h>
 #include <Pegasus/Common/ArrayInternal.h>
 #include <Pegasus/Common/PegasusVersion.h>
+#include <Pegasus/Common/Pegasus_inl.h>
 
 #include "CIMCLIOptions.h"
 #include "CIMCLIClient.h"
@@ -297,6 +298,26 @@ void BuildOptionsTable(
         "Clients.cimcli.CIMCLIClient.TIME_OPTION_HELP",
         "Measure time for the operation and present results"},
 
+//EXP_PULL_BEGIN
+        {"pullTimeout", "10", false, Option::WHOLE_NUMBER, 0, 0, "pt",
+            "Clients.cimcli.CIMCLIClient.PULLTIMEOUT",
+            "Pull interoperation timeout in seconds. "},
+
+        {"maxObjectCount", "100", false, Option::WHOLE_NUMBER, 0, 0, "mo",
+            "Clients.cimcli.CIMCLIClient.MAXOBJCNT",
+            "Maximum number of objects in a single Pull "},
+
+        {"maxObjectsToReceive", "0", false, Option::WHOLE_NUMBER, 0, 0, "mr",
+        "Clients.cimcli.CIMCLIClient.MAXOBJRCV",
+            "Maximum objects to Receive in a pull sequence. "
+            "Will Close when this number received."},
+
+        {"pullDelay", "0", false, Option::WHOLE_NUMBER, 0, 0, "pullDelay",
+        "Clients.cimcli.CIMCLIClient.PULLDELAY",
+            "Delay in Seconds between pull Operations. "
+            "Default zero, no delay."},
+// EXP_PULL_END
+
         {"sort", "false", false, Option::BOOLEAN, 0, 0, "-sort",
         "Clients.cimcli.CIMCLIClient.SORT_OPTION_HELP",
         "Sort the returned entities for multi-object responses "
@@ -404,7 +425,7 @@ void lookupStringOption(Options& opts,
 {
     // Test for existing option. If nothing found, this
     // function exits cimcli with error status
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     if (om.lookupValue(optionName, optsTarget))
     {
@@ -421,7 +442,7 @@ void lookupStringOptionEMPTY(Options& opts,
     String& optsTarget)
 {
     // Test for Existing Option
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     String temp;
     if (om.lookupValue(optionName, temp))
@@ -435,14 +456,14 @@ void lookupStringOptionEMPTY(Options& opts,
     }
 }
 
-void lookupCIMNameOption(Options& opts,
+Boolean lookupCIMNameOption(Options& opts,
     OptionManager& om,
     const char* optionName,
     CIMName& optsTarget,
     const CIMName& defaultValue)
 {
     // Test for existing option
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     String temp;
     if (om.lookupValue(optionName, temp))
@@ -459,7 +480,7 @@ void lookupCIMNameOption(Options& opts,
                cerr << "Parse Error in " << optionName << " Class. Exception "
                     << e.getMessage()
                     << endl;
-               cimcliExit(CIMCLI_INPUT_ERR);
+               return false;
            }
        }
        else
@@ -470,9 +491,10 @@ void lookupCIMNameOption(Options& opts,
            cout << optionName << " = " << optsTarget.getString() << endl;
        }
     }
+    return true;
 }
 
-// Lookup a single Uin32 option.  NOTE: The issue here is with detecting
+// Lookup a single Uint32 option.  NOTE: The issue here is with detecting
 // whether the option exists or we should use the internal default.
 // Return from the option manager is the defined default which is itself
 // an integer.
@@ -484,7 +506,7 @@ void lookupUint32Option(Options& opts,
     const char* units = "")
 {
     // Test for existing option
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     optsTarget = 0;
     if (!om.lookupIntegerValue(optionName, optsTarget))
@@ -499,6 +521,42 @@ void lookupUint32Option(Options& opts,
             << endl;
     }
 }
+
+//EXP_PULL_BEGIN
+// Lookup a single Uint32 option.  NOTE: The issue here is with detecting
+// whether the option exists or we should use the internal default.
+// Return from the option manager is the defined default which is itself
+// an integer.
+void lookupUint32ArgOption(Options& opts,
+                   OptionManager& om,
+                   const char* optionName,
+                   Uint32Arg& optsTarget,
+                   Uint32 defaultValue,
+                   const char* units = "")
+{
+    // KS_TBD - Expand this to allow the NULL options which is part of
+    // Uint32Arg
+
+    optsTarget.setNullValue();
+    Uint32 temp;
+    if (!om.lookupIntegerValue(optionName, temp))
+    {
+        optsTarget.setValue(0);
+    }
+
+    // KS_TBD - This is temporary until we expand option manager to support
+    // the numeric arg concept.
+    optsTarget.setValue(temp);
+
+    if (opts.verboseTest && opts.debug &&
+        (optsTarget.getValue() != 0 || !optsTarget.isNull() ) )
+    {
+        cout << optionName << " = " << optsTarget.toString()
+        << " " << units
+            << endl;
+    }
+}
+//EXP_PULL_END
 
 // Lookup value only if the option was resolved. Ignores default values.
 Boolean lookupUint32ResolvedOption(Options& opts,
@@ -533,12 +591,12 @@ void lookupBooleanOption(Options& opts,
                    Boolean& optsTarget)
 {
     // Test for existing option
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     optsTarget = om.isTrue(optionName);
     if (optsTarget  && opts.verboseTest && opts.debug)
     {
-        cout << optionName << " = " << _toString(optsTarget) << endl;
+        cout << optionName << " = " << boolToString(optsTarget) << endl;
     }
 }
 
@@ -548,16 +606,16 @@ void lookupBooleanOptionNegate(Options& opts,
                    Boolean& optsTarget)
 {
     // Test for existing option
-    const Option* op = _lookupOption(om, optionName);
+    _lookupOption(om, optionName);
 
     optsTarget = !om.isTrue(optionName);
     if (optsTarget  && opts.verboseTest && opts.debug)
     {
-        cout << optionName << " = " << _toString(optsTarget) << endl;
+        cout << optionName << " = " << boolToString(optsTarget) << endl;
     }
 }
 
-void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
+Boolean CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
 {
     Uint32 lineLength = 79;
     // Catch the verbose and debug options first so they can control other
@@ -578,7 +636,7 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
     if (om.isTrue("full help"))
     {
         showFullHelpMsg(argv[0], om, lineLength);
-        cimcliExit(CIMCLI_RTN_CODE_OK);
+        return false;   // signal cimcli should terminate after display
     }
 
     // show usage for a single operation and exit
@@ -586,31 +644,31 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
     {
         if (!showOperationUsage(argv[1], om, lineLength))
         {
-            cimcliExit(CIMCLI_INPUT_ERR);
+            opts.termCondition = CIMCLI_INPUT_ERR;
+            return false;
         }
-
-        cimcliExit(CIMCLI_RTN_CODE_OK);
+        return false;
     }
 
     // show version number
     if (om.isTrue("version"))
     {
         showVersion(argv[0], om);
-        cimcliExit(CIMCLI_RTN_CODE_OK);
+        return false;
     }
 
     // show all help options
     if (om.isTrue("help options"))
     {
         showOptions(argv[0], om);
-        cimcliExit(CIMCLI_RTN_CODE_OK);
+        return false;
     }
 
     // show help Operation list
     if (om.isTrue("help commands"))
     {
         showOperations(argv[0], lineLength);
-        cimcliExit(CIMCLI_RTN_CODE_OK);
+        return false;
     }
 
     lookupStringOption(opts, om, "namespace", opts.nameSpace);
@@ -651,15 +709,37 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
 #endif
 
     // Assign the result class
-    lookupCIMNameOption(opts, om, "resultClass", opts.resultClass, CIMName());
+    if (!lookupCIMNameOption(opts, om, "resultClass",
+                             opts.resultClass, CIMName()))
+    {
+        opts.termCondition = CIMCLI_INPUT_ERR;
+        return false;
+    }
 
-    lookupCIMNameOption(opts, om, "assocClass", opts.assocClass, CIMName());
+    if (!lookupCIMNameOption(opts, om, "assocClass",
+                        opts.assocClass, CIMName()))
+    {
+        opts.termCondition = CIMCLI_INPUT_ERR;
+        return false;
+    }
 
     // Evaluate connectiontimeout option.
     lookupUint32Option(opts, om, "connecttimeout", opts.connectionTimeout, 0,
         "seconds");
 
     lookupUint32Option(opts, om, "delay", opts.delay, 0, "seconds");
+
+//EXP_PULL_BEGIN
+    // Options to support parameters on pull operations
+    lookupUint32ArgOption(opts, om, "pullTimeout",
+                          opts.pullOperationTimeout, 0, "seconds");
+    lookupUint32Option(opts, om, "maxObjectCount",
+                       opts.maxObjectCount, 0, "max rtn");
+
+    lookupUint32Option(opts, om, "pullDelay", opts.pullDelay, 0, "seconds");
+    lookupUint32Option(opts, om, "maxObjectsToReceive",
+                       opts.maxObjectsToReceive, 0, "seconds");
+//EXP_PULL_END
 
     // Set the interactive request flag based on input
     lookupBooleanOption(opts, om,"interactive", opts.interactive);
@@ -698,7 +778,8 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
               "    parameters can be directly input as name/value pairs\n"
               "    in the same manner properties are input to the\n"
               "    createInstance and other operations\n" << endl;
-        cimcliExit(CIMCLI_INPUT_ERR);
+        opts.termCondition = CIMCLI_INPUT_ERR;
+        return false;
     }
 
     // process localOnly and notlocalOnly parameters
@@ -711,7 +792,7 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
     // Used the not version because the DMTF and pegasus default is true
     if (verboseTest && debug && om.isTrue("notLocalOnly"))
     {
-        cout << "localOnly= " << _toString(opts.localOnly) << endl;;
+        cout << "localOnly= " << boolToString(opts.localOnly) << endl;;
     }
 
     // Process includeQualifiers and notIncludeQualifiers
@@ -788,14 +869,13 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
 
     // test for valid string on output type.
     if ((opts.outputType = OutputTypeStruct::getOutputType(
-                                                    opts.outputTypeParamStr))
-         == OUTPUT_TYPE_ILLEGAL )
+        opts.outputTypeParamStr)) == OUTPUT_TYPE_ILLEGAL )
     {
         cerr << "Error: Invalid Output Type " << opts.outputTypeParamStr
              << ". Valid types are: "<< OutputTypeStruct::listOutputTypes()
              << endl;
-        cimcliExit(CIMCLI_INPUT_ERR);
-    }
+            opts.termCondition = CIMCLI_INPUT_ERR;
+            return false;    }
 
     // Test for special output option -x
     // Note that this is after the general format definition so that it
@@ -862,18 +942,25 @@ void CheckCommonOptionValues(OptionManager& om, char** argv, Options& opts)
 
                 for (Uint32 i = 0 ; i < pListString.size(); i++)
                 {
-                    pList.append(CIMName(pListString[i]));
+                    try
+                    {
+                        pList.append(CIMName(pListString[i]));
+                    }
+                    catch (InvalidNameException&)
+                    {
+                        throw OMInvalidOptionValue("propertyList", properties);
+                    }
                 }
                 opts.propertyList.set(pList);
             }
             if (debug && verboseTest && properties != "###!###")
             {
-                cout << "PropertyList= "
-                    << _toString(opts.propertyList)
-                    << endl;
+                cout << "PropertyList= " << opts.propertyList.toString()
+                     << endl;
             }
         }
     }
+    return true;
 }
 
 PEGASUS_NAMESPACE_END

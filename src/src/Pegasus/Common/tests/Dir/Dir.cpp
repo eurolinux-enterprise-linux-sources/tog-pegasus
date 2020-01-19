@@ -61,26 +61,27 @@ void test01()
     PEGASUS_TEST_ASSERT(String::equal(names[2], "c"));
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     try
     {
-    test01();
+        test01();
     }
     catch (Exception& e)
     {
-    cout << e.getMessage() << endl;
-    exit(1);
+       cout << e.getMessage() << endl;
+       exit(1);
     }
 
     try
     {
-    Dir dir("noSuchDirectory");
+        Dir dir("noSuchDirectory");
     }
-    catch (CannotOpenDirectory&)
+    catch (CannotOpenDirectory &e )
     {
-    cout << argv[0] << " +++++ passed all tests" << endl;
-    exit(0);
+        cout << argv[0] << " Expected exceptions: " << e.getMessage() << endl;
+        cout << argv[0] << " +++++ passed all tests" << endl;
+        exit(0);
     }
 
     PEGASUS_TEST_ASSERT(0);

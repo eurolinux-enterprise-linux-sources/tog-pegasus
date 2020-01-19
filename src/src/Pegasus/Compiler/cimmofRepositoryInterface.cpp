@@ -62,10 +62,14 @@ cimmofRepositoryInterface::~cimmofRepositoryInterface()
 #endif
 }
 
+// The descriptions parameter controls inclusion of descriptions in
+// mof output. When false, descriptions are not used.  Today it is
+// used only with the MRR Generation because that is where size is
+// critical and the description qualifiers add significant size.
 void cimmofRepositoryInterface::init(_repositoryType type, String location,
-                Uint32 mode,
-                compilerCommonDefs::operationType ot,
-                bool descriptions)
+    Uint32 mode,
+    compilerCommonDefs::operationType ot,
+    bool descriptions)
 {
     String message;
     cimmofMessages::arglist arglist;
@@ -86,8 +90,8 @@ void cimmofRepositoryInterface::init(_repositoryType type, String location,
                 arglist.append(location);
                 arglist.append(e.getMessage());
                 cimmofMessages::getMessage(message,
-                        cimmofMessages::REPOSITORY_CREATE_ERROR,
-                        arglist);
+                    cimmofMessages::REPOSITORY_CREATE_ERROR,
+                    arglist);
                 p->elog(message);
                 delete _repository;
                 _repository = 0;
@@ -100,7 +104,7 @@ void cimmofRepositoryInterface::init(_repositoryType type, String location,
         _client = new cimmofClient();
         try
         {
-            _client->init(location, ot);
+            _client->init(ot);
         }
         catch (const CannotConnectException &)
         {
@@ -113,8 +117,8 @@ void cimmofRepositoryInterface::init(_repositoryType type, String location,
             arglist.append(location);
             arglist.append(e.getMessage());
             cimmofMessages::getMessage(message,
-                    cimmofMessages::REPOSITORY_CREATE_ERROR,
-                    arglist);
+                cimmofMessages::REPOSITORY_CREATE_ERROR,
+                arglist);
             cimmofParser *p = cimmofParser::Instance();
             p->elog(message);
             delete _client;
@@ -127,11 +131,34 @@ void cimmofRepositoryInterface::init(_repositoryType type, String location,
         // create memory-resident repository handler.
         _mrr = new cimmofMRR(descriptions);
     }
-#endif
-    else
+    else   // Not valid type
     {
-        // throw an exception
+        arglist.append(location);
+        arglist.append("Compiler Internal Error");
+        cimmofMessages::getMessage(message,
+                cimmofMessages::REPOSITORY_CREATE_ERROR,
+                arglist);
+        cimmofParser *p = cimmofParser::Instance();
+        p->elog(message);
     }
+#else   
+    else // not valid type
+    {
+        // hide the compiler warning that the descriptions parameter is not
+        // used except with MRR generation
+        (void)descriptions;
+
+        
+        // Generate error message and Terminate
+        arglist.append(location);
+        arglist.append("Compiler Internal Error");
+        cimmofMessages::getMessage(message,
+                cimmofMessages::REPOSITORY_CREATE_ERROR,
+                arglist);
+        cimmofParser *p = cimmofParser::Instance();
+        p->elog(message);
+    }
+#endif
 }
 
 void cimmofRepositoryInterface::addClass(const CIMNamespaceName &nameSpace,

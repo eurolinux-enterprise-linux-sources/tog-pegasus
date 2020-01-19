@@ -56,6 +56,7 @@ DIRS = \
     HashTable \
     HTTPMessage \
     InstanceDecl \
+    IPC \
     L10N \
     L10N/msg \
     Logger \
@@ -76,8 +77,10 @@ DIRS = \
     QualifierList \
     Reference \
     Resolve \
+    ResponseData \
     Scope \
     SCMO \
+    SCMOStreamer \
     SpinLock \
     Stack \
     StrToInstName \
@@ -101,7 +104,8 @@ DIRS = \
     HostAddress \
     HostLocator \
     OrderedSet \
-    XmlWriter
+    XmlWriter \
+    UintArgs
 
 
 ifndef PEGASUS_DISABLE_PERFINST

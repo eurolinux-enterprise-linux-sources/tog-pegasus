@@ -45,12 +45,15 @@ String StatisticalData::requestName[] =
 {
                                     // Enumerated     ValueMap Value
                                     // value from     from class
-                                    // internal       CIM_StatisticalData
+                                    // Pegasus        CIM_StatisticalData
                                     // message type
                                     // -------------- -------------------
+//"Unknown",                        //                 0   default
+//"Other",                          //                 1   mapped
+//"Batched",                        //                 2   not used
   "GetClass",                       //     1           3
   "GetInstance",                    //     2           4
-  "IndicationDelivery",             //     3           26
+  "IndicationDelivery",             //     3          26
   "DeleteClass",                    //     4           5
   "DeleteInstance",                 //     5           6
   "CreateClass",                    //     6           7
@@ -58,40 +61,65 @@ String StatisticalData::requestName[] =
   "ModifyClass",                    //     8           9
   "ModifyInstance",                 //     9          10
   "EnumerateClasses",               //    10          11
-  "EnumerateClassNames",            //    11          12
-  "EnumerateInstances",             //    12          13
-  "EnumerateInstanceNames",         //    13          14
-  "ExecQuery",                      //    14          15
-  "Associators",                    //    15          16
-  "AssociatorNames",                //    16          17
-  "References",                     //    17          18
-  "ReferenceNames",                 //    18          19
-  "GetProperty",                    //    19          20
-  "SetProperty",                    //    20          21
-  "GetQualifier",                   //    21          22
-  "SetQualifier",                   //    22          23
-  "DeleteQualifier",                //    23          24
-  "EnumerateQualifiers",            //    24          25
-  "InvokeMethod"                    //    25          Not Present
+  "EnumerateClassNames",            //    12          12
+  "EnumerateInstances",             //    13          13
+  "EnumerateInstanceNames",         //    14          14
+  "ExecQuery",                      //    15          15
+  "Associators",                    //    16          16
+  "AssociatorNames",                //    17          17
+  "References",                     //    18          18
+  "ReferenceNames",                 //    19          19
+  "GetProperty",                    //    20          20
+  "SetProperty",                    //    21          21
+  "GetQualifier",                   //    22          22
+  "SetQualifier",                   //    23          23
+  "DeleteQualifier",                //    24          24
+  "EnumerateQualifiers",            //    25          25
+// Entries below this point are not part of the CIM Class and are treated
+// as OtherOperationTypes in the CIM_CIMOMStatisticalData instance.
+  "InvokeMethod",                    //    26          Not Present index = 26
+//EXP_PULL_BEGIN
+//// These are not defined in CIM_StatisticalData class and are
+///  represented by the Other groping with supplementary property
+  "OpenEnumerateInstances",         //    71          27
+  "OpenEnumerateInstancePaths",     //    72
+  "OpenAssociators",                //    73
+  "OpenAssociatorPaths",           //     74
+  "OpenReferences",                 //    75
+  "OpenReferenceNames",             //    76
+  "OpenQueryInstances",             //    77
+  "PullInstancesWithPath",          //    78
+  "PullInstancePaths",              //    79
+  "CloseEnumeration" ,              //    80
+//EXP_PULL_END
 };
 
 const Uint32 StatisticalData::length = NUMBER_OF_TYPES;
 
-StatisticalData* StatisticalData::cur = NULL;
+// Pointer to StatisticalData table if it exists.
+StatisticalData* StatisticalData::table = NULL;
 
+// If first call, create the statistical data array
 StatisticalData* StatisticalData::current()
 {
-    if (cur == NULL)
+    if (table == NULL)
     {
-        cur = new StatisticalData();
+        table = new StatisticalData();
     }
-    return cur;
+    return table;
 }
 
+// Constructor clears the statisticalData Array and sets the gatherint
+// flag to zero
 StatisticalData::StatisticalData()
 {
     copyGSD = 0;
+    clear();
+}
 
+void StatisticalData::clear()
+{
+    AutoMutex autoMut(_mutex);
     for (unsigned int i=0; i<StatisticalData::length; i++)
     {
         numCalls[i] = 0;
@@ -102,8 +130,33 @@ StatisticalData::StatisticalData()
     }
 }
 
-void StatisticalData::addToValue(Sint64 value, Uint16 type, Uint32 t)
+String StatisticalData::getRequestName(Uint16 i)
 {
+    return requestName[i];
+}
+
+void StatisticalData::addToValue(Sint64 value,
+    MessageType msgType,
+    StatDataType t)
+{
+    // Map MessageType to statistic type. Requires multiple tests because
+    // mapping request and responses to the request types.
+    Uint16 type;
+
+    if ((msgType) >= CIM_OPEN_ENUMERATE_INSTANCES_REQUEST_MESSAGE)
+    {
+        type = msgType - CIM_DELETE_QUALIFIER_RESPONSE_MESSAGE;
+    }
+    else if (msgType >= CIM_GET_CLASS_RESPONSE_MESSAGE)
+    {
+        type = msgType - CIM_GET_CLASS_RESPONSE_MESSAGE;
+    }
+    else
+    {
+        type = msgType - 1;
+    }
+
+    // Test if valid statistic type
     if (type >= NUMBER_OF_TYPES)
     {
          PEG_TRACE((TRC_DISCARDED_DATA, Tracer::LEVEL2,
@@ -111,6 +164,12 @@ void StatisticalData::addToValue(Sint64 value, Uint16 type, Uint32 t)
                  "Invalid Request Type =  %u", type));
          return;
     }
+    //// Diagnostic to confirm message type conversion. Normally commented
+    //// out
+//  PEG_TRACE((TRC_STATISTICAL_DATA, Tracer::LEVEL4,
+//   "StatisticalData::addToValue msgType %s %u. stat type %u %s",
+//             MessageTypeToString(msgType),
+//             msgType, type, (const char*)requestName[type].getCString() ));
 
     if (copyGSD)
     {

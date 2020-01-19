@@ -100,6 +100,10 @@ public:
         Boolean shareable,
         Boolean updatesAllowed);
 
+    void modifyNameSpaceName(
+        const CIMNamespaceName& nameSpaceName,
+        const CIMNamespaceName& newNameSpaceName);
+    
     /** Deletes the given namespace.
         @param nameSpaceName name of namespace to be deleted.
         @exception CIMException(CIM_ERR_INVALID_NAMESPACE)
@@ -195,14 +199,12 @@ public:
         const CIMNamespaceName& nameSpaceName,
         const CIMName& className) const;
 
-    /** Check whether the specified qualifier may be deleted
+    /** Check whether update to namespace allowed.
         @param nameSpaceName Namespace in which the qualifier exists.
-        @param qualifierName Name of qualifier to be deleted.
-        @exception CIMException If the class may not be deleted
+        @exception CIMException If the updates not allowed
     */
-    void checkSetOrDeleteQualifier(
-        const CIMNamespaceName& nameSpaceName,
-        const CIMName& qualifierName) const;
+    void checkNameSpaceUpdateAllowed(
+        const CIMNamespaceName& nameSpaceName) const;
 
     /** Deletes the class file for the given class.
         @param nameSpaceName name of namespace.

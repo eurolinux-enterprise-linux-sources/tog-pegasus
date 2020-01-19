@@ -59,9 +59,9 @@ public:
         sent by the client.
         @param secretKept String containing the authentication secret that
         was sent to client as part of the challenge.
-        @return true on successful authentication, false otherwise
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean authenticate(
+    AuthenticationStatus authenticate(
         const String& userName,
         const String& secretReceived,
         const String& secretKept);
@@ -69,9 +69,13 @@ public:
     /**
         Verify whether the user is valid.
         @param userName String containing the user name
-        @return true on successful validation, false otherwise
+        @param authInfo reference to AuthenticationInfo object that holds the
+        authentication information for the given connection.
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean validateUser(const String& userName);
+    AuthenticationStatus validateUser(
+        const String& userName,
+        AuthenticationInfo* authInfo);
 
     /** Construct and return the Peagaus Local authentication challenge header
         @param authType String containing the authentication type

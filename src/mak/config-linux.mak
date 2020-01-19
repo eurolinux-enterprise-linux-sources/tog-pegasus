@@ -97,10 +97,20 @@ SYS_LIBS = -ldl -lpthread -lcrypt
 
 ifeq ($(COMPILER), clang)
     FLAGS += -W -Wall -Wno-unused-parameter  -Wno-unused-value -D_GNU_SOURCE \
-        -DTHREAD_SAFE -D_REENTRANT -Wno-unused-variable  -Wno-unused-function  
+        -DTHREAD_SAFE -D_REENTRANT -Werror=unused-variable -Wno-unused-function \
+        -Werror=switch
 else
-    FLAGS += -W -Wall -Wno-unused  -D_GNU_SOURCE -DTHREAD_SAFE -D_REENTRANT
+    FLAGS += -W -Wall -Wno-unused -Wunused-variable
+  # Starting with gcc 4.3 specific warnings can be reported as error
+  # Enabling a specific selection of warnings to turn into errors
+  ifeq ($(shell expr $(GCC_VERSION) '>=' 4.3), 1)
+    FLAGS += -Werror=unused-variable
+    FLAGS += -Werror=switch
+   endif
+    FLAGS += -D_GNU_SOURCE -DTHREAD_SAFE -D_REENTRANT
 endif
+
+
 ##==============================================================================
 ##
 ## The DYNAMIC_FLAGS variable defines linker flags that only apply to shared
@@ -112,21 +122,23 @@ DYNAMIC_FLAGS += -fPIC
 ifdef PEGASUS_USE_DEBUG_BUILD_OPTIONS
   FLAGS += -g
 else
-  FLAGS += -s
   #
   # The -fno-enforce-eh-specs is not available in 2.9.5 and it probably
   # appeared in the 3.0 series of compilers.
   #
   ifeq ($(COMPILER), gnu)
-  ifeq ($(shell expr $(GCC_VERSION) '>=' 3.0), 1)
-    EXTRA_CXX_FLAGS += -fno-enforce-eh-specs
-  endif
-  else
-          EXTRA_CXX_FLAGS += -fno-enforce-eh-specs
+   # disable the strict aliasing
+   ifeq ($(shell expr $(GCC_VERSION) '>=' 3.0), 1)
+     PEGASUS_EXTRA_CXX_FLAGS += -fno-enforce-eh-specs -fno-strict-aliasing
+   endif
   endif
       
   ifdef PEGASUS_OPTIMIZE_FOR_SIZE
-    FLAGS += -Os
+    ifeq ($(COMPILER), gnu)
+      FLAGS += -Os
+    else
+      FLAGS += -Oz
+    endif
   else
     FLAGS += -O2
   endif
@@ -152,20 +164,20 @@ endif
 ##==============================================================================
 
 ifeq ($(COMPILER), gnu)
-ifeq ($(shell expr $(GCC_VERSION) '>=' 4.0), 1)
+ ifeq ($(shell expr $(GCC_VERSION) '>=' 4.0), 1)
     FLAGS += -fvisibility=hidden
-endif
+ endif
 else
     FLAGS +=-fvisibility=hidden	
 endif
 
 ifndef PEGASUS_ARCH_LIB
-    ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_GNU)
+  ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_GNU)
         PEGASUS_ARCH_LIB = lib64
-    endif
-    ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_CLANG)
+  endif
+  ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_CLANG)
         PEGASUS_ARCH_LIB = lib64
-    endif
-    PEGASUS_ARCH_LIB = lib
+  endif
+  PEGASUS_ARCH_LIB = lib
 endif
 DEFINES += -DPEGASUS_ARCH_LIB=\"$(PEGASUS_ARCH_LIB)\"

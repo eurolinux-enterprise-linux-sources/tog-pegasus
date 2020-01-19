@@ -409,12 +409,12 @@ static void TestDomainSocketConnection()
         caughtException = true;
     }
 
-    PEGASUS_ASSERT(caughtException);
+    PEGASUS_TEST_ASSERT(caughtException);
 
 #endif
 }
 
-int main(int argc, char** argv)
+int main()
 {
     try
     {

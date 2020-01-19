@@ -1,19 +1,19 @@
-diff -up pegasus/mak/config-linux.mak.sparc pegasus/mak/config-linux.mak
---- pegasus/mak/config-linux.mak.sparc	2012-10-08 12:25:24.910661094 +0200
-+++ pegasus/mak/config-linux.mak	2012-10-08 12:28:07.613507858 +0200
-@@ -166,6 +166,9 @@ ifndef PEGASUS_ARCH_LIB
-     ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_CLANG)
+diff -up pegasus/mak/config-linux.mak.orig pegasus/mak/config-linux.mak
+--- pegasus/mak/config-linux.mak.orig	2013-08-27 14:26:51.229234756 +0200
++++ pegasus/mak/config-linux.mak	2013-08-27 14:27:23.467354043 +0200
+@@ -176,6 +176,9 @@ ifndef PEGASUS_ARCH_LIB
+   ifeq ($(PEGASUS_PLATFORM),LINUX_X86_64_CLANG)
          PEGASUS_ARCH_LIB = lib64
-     endif
-+    ifeq ($(PEGASUS_PLATFORM),LINUX_SPARC64_GNU)
+   endif
++  ifeq ($(PEGASUS_PLATFORM),LINUX_SPARC64_GNU)
 +        PEGASUS_ARCH_LIB = lib64
-+    endif
-     PEGASUS_ARCH_LIB = lib
++  endif
+   PEGASUS_ARCH_LIB = lib
  endif
  DEFINES += -DPEGASUS_ARCH_LIB=\"$(PEGASUS_ARCH_LIB)\"
-diff -up pegasus/mak/platform_LINUX_SPARC64_GNU.mak.sparc pegasus/mak/platform_LINUX_SPARC64_GNU.mak
---- pegasus/mak/platform_LINUX_SPARC64_GNU.mak.sparc	2012-10-08 12:29:27.198953706 +0200
-+++ pegasus/mak/platform_LINUX_SPARC64_GNU.mak	2012-10-08 12:33:08.735161475 +0200
+diff -up pegasus/mak/platform_LINUX_SPARC64_GNU.mak.orig pegasus/mak/platform_LINUX_SPARC64_GNU.mak
+--- pegasus/mak/platform_LINUX_SPARC64_GNU.mak.orig	2013-08-27 14:27:56.748477172 +0200
++++ pegasus/mak/platform_LINUX_SPARC64_GNU.mak	2013-08-27 14:28:42.522646515 +0200
 @@ -0,0 +1,36 @@
 +#//%2006////////////////////////////////////////////////////////////////////////
 +#//
@@ -51,9 +51,9 @@ diff -up pegasus/mak/platform_LINUX_SPARC64_GNU.mak.sparc pegasus/mak/platform_L
 +include $(ROOT)/mak/config-linux.mak
 +
 +ARCHITECTURE = sparc
-diff -up pegasus/mak/platform_LINUX_SPARCV9_GNU.mak.sparc pegasus/mak/platform_LINUX_SPARCV9_GNU.mak
---- pegasus/mak/platform_LINUX_SPARCV9_GNU.mak.sparc	2012-10-08 12:33:49.424379019 +0200
-+++ pegasus/mak/platform_LINUX_SPARCV9_GNU.mak	2012-10-08 12:30:54.670435787 +0200
+diff -up pegasus/mak/platform_LINUX_SPARCV9_GNU.mak.orig pegasus/mak/platform_LINUX_SPARCV9_GNU.mak
+--- pegasus/mak/platform_LINUX_SPARCV9_GNU.mak.orig	2013-08-27 14:29:02.011718625 +0200
++++ pegasus/mak/platform_LINUX_SPARCV9_GNU.mak	2013-08-27 14:29:28.282815781 +0200
 @@ -0,0 +1,36 @@
 +#//%2006////////////////////////////////////////////////////////////////////////
 +#//
@@ -91,10 +91,10 @@ diff -up pegasus/mak/platform_LINUX_SPARCV9_GNU.mak.sparc pegasus/mak/platform_L
 +include $(ROOT)/mak/config-linux.mak
 +
 +ARCHITECTURE = sparc
-diff -up pegasus/mak/SDKMakefile.sparc pegasus/mak/SDKMakefile
---- pegasus/mak/SDKMakefile.sparc	2012-10-08 12:31:17.904562644 +0200
-+++ pegasus/mak/SDKMakefile	2012-10-08 12:37:29.392538539 +0200
-@@ -501,6 +501,18 @@ ifeq ($(RUNTIME_PLATFORM_TEST_NEEDED), t
+diff -up pegasus/mak/SDKMakefile.orig pegasus/mak/SDKMakefile
+--- pegasus/mak/SDKMakefile.orig	2013-08-27 14:29:46.108881720 +0200
++++ pegasus/mak/SDKMakefile	2013-08-27 14:32:18.170444052 +0200
+@@ -510,6 +510,18 @@ ifeq ($(RUNTIME_PLATFORM_TEST_NEEDED), t
              >> $(PEGASUS_STAGING_DIR)$(PEGASUS_SAMPLES_DIR)/mak/config.mak
  	@$(ECHO-E) "   endif" \
              >> $(PEGASUS_STAGING_DIR)$(PEGASUS_SAMPLES_DIR)/mak/config.mak
@@ -113,11 +113,10 @@ diff -up pegasus/mak/SDKMakefile.sparc pegasus/mak/SDKMakefile
    else
          $(error This SDK has been defined to include the following \
          platforms: $(PACKAGED_PLATFORM_FILES). \
-@@ -577,7 +589,18 @@ ifeq ($(RUNTIME_PLATFORM_TEST_NEEDED), t
-             >> $(PEGASUS_STAGING_DIR)$(PEGASUS_SAMPLES_DIR)/mak/config.mak
+@@ -594,6 +606,18 @@ ifeq ($(RUNTIME_PLATFORM_TEST_NEEDED), t
  	@$(ECHO-E) "endif" \
              >> $(PEGASUS_STAGING_DIR)$(PEGASUS_SAMPLES_DIR)/mak/config.mak
--
+ 
 +	@$(ECHO-E) "ifeq (\044(PEGASUS_PLATFORM),LINUX_SPARCV9_GNU)" \
 +            >> $(PEGASUS_STAGING_DIR)$(PEGASUS_SAMPLES_DIR)/mak/config.mak
 +	@$(ECHO-E) "   PEGASUS_ARCH_LIB = lib" \
@@ -133,9 +132,9 @@ diff -up pegasus/mak/SDKMakefile.sparc pegasus/mak/SDKMakefile
    else
          $(error This SDK has been defined to include the following \
          platforms: $(PACKAGED_PLATFORM_FILES). \
-diff -up pegasus/src/Pegasus/Common/Config.h.sparc pegasus/src/Pegasus/Common/Config.h
---- pegasus/src/Pegasus/Common/Config.h.sparc	2012-10-08 12:38:08.351741449 +0200
-+++ pegasus/src/Pegasus/Common/Config.h	2012-10-08 12:38:53.697976948 +0200
+diff -up pegasus/src/Pegasus/Common/Config.h.orig pegasus/src/Pegasus/Common/Config.h
+--- pegasus/src/Pegasus/Common/Config.h.orig	2013-08-27 14:32:34.763505395 +0200
++++ pegasus/src/Pegasus/Common/Config.h	2013-08-27 14:33:05.402618625 +0200
 @@ -82,6 +82,10 @@
  # include <Pegasus/Common/Platform_LINUX_PPC64_GNU.h>
  #elif defined (PEGASUS_PLATFORM_LINUX_PPC_E500_GNU)
@@ -147,9 +146,9 @@ diff -up pegasus/src/Pegasus/Common/Config.h.sparc pegasus/src/Pegasus/Common/Co
  #elif defined (PEGASUS_PLATFORM_LINUX_ZSERIES_GNU)
  # include <Pegasus/Common/Platform_LINUX_ZSERIES_GNU.h>
  #elif defined (PEGASUS_PLATFORM_LINUX_ZSERIES64_GNU)
-diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.sparc pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h
---- pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.sparc	2012-10-08 12:39:25.331140743 +0200
-+++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h	2012-10-08 12:40:32.353486723 +0200
+diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.orig pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h
+--- pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.orig	2013-08-27 14:33:28.186702833 +0200
++++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h	2013-08-27 14:34:45.833989895 +0200
 @@ -0,0 +1,93 @@
 +/*
 +//%2006////////////////////////////////////////////////////////////////////////
@@ -244,9 +243,9 @@ diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARC64_GNU.h.sparc pegasus/s
 +#endif
 +
 +#endif /* Pegasus_Platform_LINUX_SPARC64_GNU_h */
-diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.sparc pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h
---- pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.sparc	2012-10-08 12:40:43.042541758 +0200
-+++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h	2012-10-08 12:41:51.297892618 +0200
+diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.orig pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h
+--- pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.orig	2013-08-27 14:35:15.787100560 +0200
++++ pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h	2013-08-27 14:36:22.937348657 +0200
 @@ -0,0 +1,93 @@
 +/*
 +//%2006////////////////////////////////////////////////////////////////////////
@@ -341,9 +340,9 @@ diff -up pegasus/src/Pegasus/Common/Platform_LINUX_SPARCV9_GNU.h.sparc pegasus/s
 +#endif
 +
 +#endif /* Pegasus_Platform_LINUX_SPARCV9_GNU_h */
-diff -up pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak.sparc pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak
---- pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak.sparc	2012-10-08 12:42:23.140055774 +0200
-+++ pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak	2012-10-08 12:42:54.003213719 +0200
+diff -up pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak.orig pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak
+--- pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak.orig	2013-08-27 14:37:02.458494760 +0200
++++ pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak	2013-08-27 14:37:36.121619044 +0200
 @@ -0,0 +1,55 @@
 +#//%2006////////////////////////////////////////////////////////////////////////
 +#//
@@ -400,9 +399,9 @@ diff -up pegasus/src/SDK/samples/mak/LINUX_SPARC64_GNU.mak.sparc pegasus/src/SDK
 +LINK_OUT = -o
 +SYM_LINK_LIB = $(PEGASUS_PROVIDER_LIB_DIR)/lib$(LIBRARY)
 +PLATFORM_LIB_SUFFIX = so
-diff -up pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak.sparc pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak
---- pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak.sparc	2012-10-08 12:43:12.451308189 +0200
-+++ pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak	2012-10-08 12:43:44.962474061 +0200
+diff -up pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak.orig pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak
+--- pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak.orig	2013-08-27 14:38:00.233708183 +0200
++++ pegasus/src/SDK/samples/mak/LINUX_SPARCV9_GNU.mak	2013-08-27 14:38:37.113844321 +0200
 @@ -0,0 +1,55 @@
 +#//%2006////////////////////////////////////////////////////////////////////////
 +#//

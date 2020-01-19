@@ -35,28 +35,22 @@
 #include <Pegasus/Common/StringConversion.h>
 #include <Pegasus/Common/Tracer.h>
 #include <Pegasus/Common/XmlWriter.h>
+#include <Pegasus/Common/Pegasus_inl.h>
 
 #include "CIMCLIClient.h"
 #include "ObjectBuilder.h"
 #include "CIMCLICommon.h"
-#include <Pegasus/Common/ArrayInternal.h>
-#include <Pegasus/Common/ArrayIterator.h>
+
 #include <Clients/cliutils/CsvStringParse.h>
 
 PEGASUS_USING_STD;
 PEGASUS_NAMESPACE_BEGIN
 
-// Define a Pegasus array implementation for the tokenItem type
-#define PEGASUS_ARRAY_T tokenItem
-# include <Pegasus/Common/ArrayImpl.h>
-#undef PEGASUS_ARRAY_T
-
 // Diagnostic dislays activated if verboseTest set to true below.  This is
-// compile time used for developer tests only.  Tjis should be disabled
+// compile time used for developer tests only.  This should be disabled
 // before code is released or automated tests run.
 bool verboseTest = false;
-#define VCOUT if (verboseTest) cout << "LINE=" << __LINE__ << " TST "
-
+#define VCOUT if (verboseTest) cout <<__FILE__ << ":" << __LINE__  << " TST "
 
 // Cleans an input array by removing the { } tokens that surround
 // the array parameters.  Does nothing if they do not exist.  If there is
@@ -72,8 +66,14 @@ void _cleanArray(String& x)
     }
     else if (x[0] == '{' || x[x.size()] == '}')
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-            "Unmatched { } in array $0", x);
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.UNMATCHED_BRACES_ERR",
+            "Unmatched { } in array $0."));
+        //#N substitution {0} is a string with the array
+        //#N in error
+        //#P 42
+        //#T UNMATCHED_BRACES_ERR
+        //#S Unmatched { } in array {0}.
     }
 }
 
@@ -99,13 +99,17 @@ Boolean _StringToBoolean(const String& x)
         return false;
     }
 
-    // NOTE: please code with both the error code and the MessageLoaderParms
-    // on the same line.  Allows us to grep for messages that have been
-    // internationalized easily.  Thanks. KS
     cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
         "Clients.cimcli.CIMCLIClient.BOOLEAN_VALUE_ERR",
-        "Invalid keyword for boolean value =  $0. "
+        "Invalid keyword for boolean value = $0. "
         "Must be \"true\" or \"false\" upper or lower case",x));
+    //#N substitution {0} is a string with the keyword
+    //#N in error
+    //#N @version 2.14
+    //#P 43
+    //#T BOOLEAN_VALUE_ERR
+    //#S Invalid keyword for boolean value = {0}. Must be \"true\" or \"false\"
+
     return false;
 }
 
@@ -124,16 +128,11 @@ Uint32 _includesType(const String& name)
 // return String for the tokenType. This is a diagnostic tool only.
 String tokenTypeToString(TokenType tokenType)
 {
-    String rtn;
     static const char * tokenTypeString[] =
     {
         "UNKNOWN","ILLEGAL", "VALUE", "NO_VALUE", "EXCLAM", "NAME_ONLY",
              "EMBED", "END_EMBED", "EMBED_NEXT_ARRAY_ITEM"
     };
-    static const Uint32 _NUM_TYPES =
-        sizeof(tokenTypeString) / sizeof(tokenTypeString[0]);
-
-    PEGASUS_ASSERT((Uint32)tokenType <= _NUM_TYPES);
     return tokenTypeString[tokenType];
 }
 
@@ -170,7 +169,7 @@ String tokenItem::toString()
     x.append(", input=");
     x.append(tokenInput);
     x.append(", duplicate=");
-    x.append(_toString(duplicate));
+    x.append(boolToString(duplicate));
     x.append(" Instance count=");
     x.append(Uint32ToString(tmp, _instances.size(), cvtSize));
     for (Uint32 i = 0 ; i < _instances.size(); i++)
@@ -215,7 +214,6 @@ tokenItem parseInputParam(const String& input)
     TokenType tokenType = UNKNOWN;
     String value;
     String name;
-    Uint32 pos;
 
     // Scan the input string for a terminator character.
     Uint32 index = 0;
@@ -272,19 +270,32 @@ tokenItem parseInputParam(const String& input)
     // separator must be found
     if (tokenType == UNKNOWN)
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-            "No name/value separator in $0."
-            "Parameters must have separator such as "
-            "= { ={ } !", input);
+    cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+        "Clients.cimcli.CIMCLIClient.NO_SEPERATOR_ERR",
+        "No name/value separator in $0. "
+        "Parameters must have separator such as"
+        "= { ={ } !", input));
+    //#N substitution {0} is a string with the input text
+    //#N in error
+    //#N @version 2.14
+    //#P 20
+    //#T NO_SEPERATOR_ERR
+    //#S No name/value separator in {0}.
+    //#S Parameters must have separator such as = { ={ } !.
     }
 
     // There must be a name entity except for END_EMBED
     else if (name.size() == 0 && tokenType != END_EMBED
              && tokenType != EMBED_NEXT_ARRAY_ITEM)
     {
-
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-            "No name on input parameter $0 ",input);
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.NO_NAME_ERR",
+            "No name on input parameter $0", input));
+        //#N substitution {0} is a string with the input text
+        //#N in error
+        //#P 21
+        //#T NO_NAME_ERR
+        //#S No name on input parameter {0}
     }
 
     // get the value component from the remaining characters of input
@@ -365,10 +376,19 @@ static CIMValue _stringToScalarValue(const char* str, CIMType type)
         case CIMTYPE_REFERENCE:
             return CIMValue(CIMObjectPath(str));
 
-        default:
-            cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
+        case CIMTYPE_CHAR16:
+        case CIMTYPE_OBJECT:
+        case CIMTYPE_INSTANCE:
+            cimcliMsg::exit(CIMCLI_INTERNAL_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.BAD_DATATYPE_ERR",
                 "Data type $0 build from string not allowed",
-                cimTypeToString(type));
+                cimTypeToString(type)));
+            //#N substitution {0} is a string with the input text
+            //#N in error
+            //#N @version 2.14
+            //#P 22
+            //#T BAD_DATATYPE_ERR
+            //#S Data type {0} build from string not allowed.
     }
     return CIMValue();
 }
@@ -393,7 +413,6 @@ Boolean _stringToArrayValue(
     CIMValue& val)
 {
     CIMType type = val.getType();
-    Uint32 arrayDimension = val.getArraySize();
     String parseStr(str);
 
     csvStringParse strl(parseStr, ',');
@@ -411,14 +430,15 @@ Boolean _stringToArrayValue(
             val.set(a);
             break;
         }
-
+        // Limits are checked in common functions for all of the integer
+        // types below
         case CIMTYPE_UINT8:
         {
             Array<Uint8> a;
             val.get(a);
             while(strl.more())
             {
-                a.append(strToUint(strl.next().getCString(), type));
+                a.append((Uint8)strToUint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -430,7 +450,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToSint(strl.next().getCString(), type));
+                a.append((Sint8)strToSint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -442,7 +462,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToUint(strl.next().getCString(), type));
+                a.append((Uint16)strToUint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -454,7 +474,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToSint(strl.next().getCString(), type));
+                a.append((Sint16)strToSint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -466,7 +486,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToUint(strl.next().getCString(), type));
+                a.append((Uint32)strToUint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -478,7 +498,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToSint(strl.next().getCString(), type));
+                a.append((Sint32)strToSint(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -514,7 +534,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToSint(strl.next().getCString(), type));
+                a.append((Real32)strToReal(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -526,7 +546,7 @@ Boolean _stringToArrayValue(
             val.get(a);
             while(strl.more())
             {
-                a.append(strToSint(strl.next().getCString(), type));
+                a.append(strToReal(strl.next().getCString(), type));
             }
             val.set(a);
             break;
@@ -568,10 +588,14 @@ Boolean _stringToArrayValue(
             break;
         }
 
-        default:
-            cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
+        case CIMTYPE_CHAR16:
+        case CIMTYPE_OBJECT:
+        case CIMTYPE_INSTANCE:
+            // This message defined above also.
+            cimcliMsg::exit(CIMCLI_INTERNAL_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.BAD_DATATYPE_ERR",
                 "Data type $0 build from string not allowed",
-                cimTypeToString(type));
+                cimTypeToString(type)));
     }
     return true;
 }
@@ -593,9 +617,16 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
         // because we consider unknown property names as warnings.
         if (token.duplicate)
         {
-            cimcliMsg::exit(CIMCLI_INPUT_ERR,
+            cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.DUP_PROPERTY_ERR",
                 "Duplicate scalar property Name. $0",
-                   token.tokenInput);
+                token.tokenInput));
+            //#N substitution {0} is a string with the property
+            //#N name in error
+            //#N @version 2.14
+            //#P 23
+            //#T DUP_PROPERTY_ERR
+            //#S Duplicate scalar property Name. {0}.
         }
     }
 
@@ -610,9 +641,17 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
             }
             else
             {
-                cimcliMsg::exit(CIMCLI_INPUT_ERR,
-                    "\"!\" terminator allowed only on String type. "
-                     " Parameter= $0",token.tokenInput);
+                cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                        "Clients.cimcli.CIMCLIClient.TERMINATOR_ERR",
+                        "\"!\" terminator allowed only on String type."
+                        " Parameter= $0", token.tokenInput));
+                    //#N substitution {0} is a string with the parameter
+                    //#N name in error
+                    //#N @version 2.14
+                    //#P 24
+                    //#T TERMINATOR_ERR
+                    //#S \"!\" terminator allowed only on String type.
+                    //#S Parameter= {0}
             }
             break;
         }
@@ -625,9 +664,16 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
                 // Append array to existing value
                 if (!_stringToArrayValue(token.tokenValue.getCString(), iv))
                 {
-                    cimcliMsg::exit(CIMCLI_INPUT_ERR,
-                        "Error parsing Array parameter. $0",
-                           token.tokenInput);
+                    cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                        "Clients.cimcli.CIMCLIClient.ARRAY_ERR",
+                        "Error parsing Array parameter $0",
+                        token.tokenInput));
+                    //#N substitution {0} is a string with the parameter
+                    //#N name in error
+                    //#N @version 2.14
+                    //#P 25
+                    //#T ARRAY_ERR
+                    //#S Error parsing Array parameter {0}
                 }
             }
             else  // scalar
@@ -679,11 +725,20 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
 
                     else
                     {
-                        cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
+                        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                            "Clients.cimcli.CIMCLIClient.INV_DATATYPE_ERR",
                             "Invalid CIM datatype on embedded object. "
-                            "CIMType=Token=$0"
-                            " token = $1", cimTypeToString(iv.getType()),
-                            token.toString());
+                            "CIMType $0 token $1",
+                            cimTypeToString(iv.getType()),
+                            token.toString()));
+                    //#N substitution {0} is a string with the CIMType
+                    //#N in error.
+                    //#N substitution {1} is the string with the invalid token.
+                    //#N @version 2.14
+                    //#P 26
+                    //#T INV_DATATYPE_ERR
+                    //#S Invalid CIM datatype on embedded object.
+                    //#S CIMType {0} token {1}.
                     }
                 }
 
@@ -693,10 +748,18 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
                     // single instance.
                     if (token._instances.size() > 1 )
                     {
-                        cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
-                            "Multiple instances generated for "
-                            "scalar property $0 at input parameter $1",
-                            token.tokenName.getString(), token.tokenInput);
+                        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                            "Clients.cimcli.CIMCLIClient.MULT_INST_ERR",
+                            "Scalar property $0 at input parameter $1",
+                            token.tokenName.getString(), token.tokenInput));
+                        //#N substitution {0} is a string with the propertyName
+                        //#N in error.
+                        //#N substitution {1} is the a string with the invalid
+                        //#N token.
+                        //#N @version 2.14
+                        //#P 27
+                        //#T MULT_INST_ERR
+                        //#S Scalar property {0} at input parameter {1}
                     }
                     CIMInstance inst = token._instances[0];
 
@@ -727,36 +790,55 @@ void _buildValueFromToken(tokenItem& token, CIMValue& iv, CIMType cimType)
 
                     else
                     {
-                        cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
+                        // Multiple usage of this message. International
+                        // definition is with previous message
+                        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                            "Clients.cimcli.CIMCLIClient.INV_DATATYPE_ERR",
                             "Invalid CIM datatype on embedded object. "
-                            "CIMType=$0"
-                            " Token=$1",
+                            "CIMType=$0 token = $1",
                             cimTypeToString(iv.getType()),
-                            token.toString());
+                            token.toString()));
                     }
                 }
             }
 
             else   // Must be instances available if parse worked
             {
-                cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
-                    "Embedded Instance(s) not built. Token=$0",
-                    token.toString());
+                cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                    "Clients.cimcli.CIMCLIClient.EMB_INST_ERR",
+                    "Embedded Instance(s) not built. Token $0.",
+                    token.toString()));
+                //#N substitution {0} is a string with the token in error
+                //#N @version 2.14
+                //#P 28
+                //#T EMB_INST_ERR
+                //#S Embedded Instance(s) not built. Token={0}.
+
             }
             break;
         }
 
         // In case of no value, just pass value existing in input CIMValue
         case NO_VALUE:
-        {
+        {        default:
             break;
         }
-
-        default:
+        case UNKNOWN:
+        case ILLEGAL:
+        case NAME_ONLY:
+        case END_EMBED:
+        case EMBED_NEXT_ARRAY_ITEM:
         {
-            cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
-                "Invalid token on building CIMValue. Token=$0",
-                token.toString());
+            cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.INV_TOK_ERR",
+                "Invalid token on building CIMValue. Token $0.",
+                token.toString()));
+
+            //#N substitution {0} is a string with the token in error
+            //#N @version 2.14
+            //#P 29
+            //#T INV_TOK_ERR
+            //#S Invalid token on building CIMValue. Token {0}.
         }
     }
 }
@@ -795,7 +877,7 @@ CIMParamValue _buildMethodParamValue(
     VCOUT << "_createMethodParamValue "
          << " tokenItem= " << ti.toString()
          << " Param type=" <<  cimTypeToString(thisParameter.getType())
-         <<  " Param isArray=" << (thisParameter.isArray()? "true" : "false")
+         << " Param isArray=" << (thisParameter.isArray()? "true" : "false")
          << " curValue type= " << cimTypeToString(curValue.getType())
          << " paramName="  << thisParameter.getName().getString()
          << endl;
@@ -823,14 +905,14 @@ class iterateArray
 public:
     // construct an iterator for an array
     iterateArray(Array<String> input)
-    : _array(input), _pos(0), _prev(String()), _start(0)
+    : _array(input), _pos(0), _prev(String())
     {
     }
 
     // Create new iterator starting from nonzero position
     // in input array
     iterateArray(Array<String> input, Uint32 pos)
-    : _array(input), _pos(pos), _prev(String()), _start(pos)
+    : _array(input), _pos(pos), _prev(String())
     {
     }
 
@@ -847,8 +929,15 @@ public:
     {
         if (!more())
         {
-            cerr << "Internal Error in iterateArray" << endl;
-            cimcliExit(CIMCLI_INTERNAL_ERR);
+            cimcliMsg::exit(CIMCLI_INTERNAL_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.INV_ARR_ITERATE_ERR",
+                "Internal Error in iterateArray."));
+
+            //#N substitution {0} is a string with the token in error
+            //#N @version 2.14
+            //#P 30
+            //#T INV_ARR_ITERATE_ERR
+            //#S Internal Error in iterateArray..
         }
         _prev = _array[_pos];
 
@@ -861,8 +950,10 @@ public:
     {
         if (_pos == 0)
         {
-            cerr << "Internal Error in iterateArray" << endl;
-            cimcliExit(CIMCLI_INTERNAL_ERR);
+            // Duplicate err msg.  No international def required
+            cimcliMsg::exit(CIMCLI_INTERNAL_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.INV_ARR_ITERATE_ERR",
+                "Internal Error in iterateArray."));
         }
         return _prev;
     }
@@ -892,7 +983,6 @@ private:
     Array<String> _array;
     Uint32 _pos;
     String _prev;
-    Uint32 _start;
 };
 
 /******************************************************************
@@ -937,9 +1027,16 @@ void ObjectBuilder::scanInputList(CIMClient& client,
                     // get class name. If no inputParamList, error
                     if (!ia.more())
                     {
-                        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-                            "No embedded instance classname at ",
-                            ti.tokenInput);
+                        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                            "Clients.cimcli.CIMCLIClient.No_ClSNAME_ERR",
+                            "No embedded instance classname at $0.",
+                            ti.tokenInput));
+
+                        //#N substitution {0} is a string with token in error
+                        //#N @version 2.14
+                        //#P 31
+                        //#T No_ClSNAME_ERR
+                        //#S No embedded instance classname at {0}.
                     }
                     else
                     {
@@ -978,10 +1075,18 @@ void ObjectBuilder::scanInputList(CIMClient& client,
                 // Should not find end markers at the zero recurse level
                 if (recurseLevel == 0)
                 {
-                    cimcliMsg::exit(CIMCLI_INPUT_ERR,
+                    cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                        "Clients.cimcli.CIMCLIClient.UNMATCHED_INST_ERR",
                         "Unmatched Embedded instance"
-                        " end marker(s) at parameter=\"$0\"",
-                        ti.tokenInput);
+                         " end marker(s) at parameter \"$0\"",
+                        ti.tokenInput));
+
+                //#N substitution {0} is a string with the input text in error
+                //#N @version 2.14
+                //#P 32
+                //#T UNMATCHED_INST_ERR
+                //#S Unmatched Embedded instance end marker(s) at
+                //#S parameter \"{0}\".
                 }
 
                 else
@@ -1016,14 +1121,23 @@ void ObjectBuilder::scanInputList(CIMClient& client,
             // should solve in the param parser
             case ILLEGAL:
             {
-                cimcliMsg::exit(CIMCLI_INPUT_ERR,
-                    "Parse Failed. Input Parameter=\"$0\" $1",
-                    ti.tokenInput,
-                    ((ti.tokenName.getString().size() == 0)?
-                          "No Name Component" : "") );
+                cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                    "Clients.cimcli.CIMCLIClient.PARSE_FAIL_ERR",
+                    "Parse Failed. Input Parameter at \"$0\".",
+                    ti.tokenInput));
+                //#N substitution {0} is a string with the token position in
+                //#N error
+                //#N @version 2.14
+                //#P 33
+                //#T PARSE_FAIL_ERR
+                //#S Parse Failed. Input Parameter \"{0}\".
             }
 
-            default:
+        case UNKNOWN:
+        case VALUE:
+        case NO_VALUE:
+        case EXCLAM:
+        case NAME_ONLY:
             {
                 appendToken(ti);
             }
@@ -1040,8 +1154,11 @@ void ObjectBuilder::scanInputList(CIMClient& client,
     // inner constructor, error
     if (!embEndTokenFound && (recurseLevel != 0))
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-            "Missing Embedded object Terminator i.e. \"}\"");
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.MISSING_TERMINATOR_ERR",
+            "Missing Embedded object Terminator i.e. \"}\" or \".\""));
+        //#T MISSING_TERMINATOR_ERR
+        //#S Missing Embedded object Terminator i.e. \"}\" or \".\".
     }
 
     // If verbose flag set, display all tokens created in this object
@@ -1155,8 +1272,9 @@ void ObjectBuilder::printTokens(String message)
     {
         VCOUT << message << endl;
     }
-    VCOUT << _tokens.size() << " Tokens exist for class="
+    VCOUT << _tokens.size() << " Tokens for class="
           << _className.getString() << endl;
+
     if (verboseTest)
     {
         for (Uint32 i = 0; i < _tokens.size(); i++)
@@ -1210,9 +1328,16 @@ CIMInstance ObjectBuilder::buildInstance(
 
     if (newInstance.isUninitialized())
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.CLASSNAME_ERR",
             "Failed to build Instance for class $0",
-            _thisClass.getClassName().getString());
+            _thisClass.getClassName().getString()));
+
+        //#N substitution {0} is a string with the classname in error
+        //#N @version 2.14
+        //#P 34
+        //#T CLASSNAME_ERR
+        //#S Failed to build Instance for class {0}.
     }
     Array<CIMName> myPropertyList;
     Uint32 propertyPos;
@@ -1227,10 +1352,19 @@ CIMInstance ObjectBuilder::buildInstance(
         if ((propertyPos = _thisClass.findProperty(
             _tokens[index].tokenName)) == PEG_NOT_FOUND)
         {
-            cerr << "Warning: property \""
-                 << _tokens[index].tokenName.getString() << "\" not in class: "
-                 << _thisClass.getClassName().getString() << ". Skipping."
-                 << endl;
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PROP_NOT_IN_CLASS",
+                "Warning: Property $0 not in class $1. Skipped this property.",
+                 _tokens[index].tokenName.getString(),
+                _thisClass.getClassName().getString()));
+
+            //#N substitution {0} is a string with a property name
+            //#N substitution {1} is a string with a classname
+            //#N @version 2.14
+            //#P 35
+            //#T PROP_NOT_IN_CLASS
+            //#S Warning: Property {0} not in class {1}. Skipped this property.
+
             continue;
         }
 
@@ -1289,9 +1423,18 @@ Array<CIMParamValue> ObjectBuilder::buildMethodParameters(CIMName& name)
     {
         // Allow execution even if method name not found but bypass
         // parameter analysis.
-        cerr << "Warning: method " << name.getString()
-            << " Not method in the class " << _className.getString()
-            <<  endl;
+        cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.METHOD_NOT_IN_CLASS",
+                "Warning: Method $0 not in class $1. Skipped this method",
+                name.getString(),
+                _className.getString() ));
+        //#N substitution {0} is a string with a method name
+        //#N substitution {1} is a string with a class name
+        //#N @version 2.14
+        //#P 36
+        //#T METHOD_NOT_IN_CLASS
+        //#S Warning: Method{0} not in class {1}. Skipped this method.
+
         return params;
     }
     else
@@ -1310,10 +1453,18 @@ Array<CIMParamValue> ObjectBuilder::buildMethodParameters(CIMName& name)
         if ((parameterPos = thisClassMethod.findParameter(
             CIMName(_tokens[index].tokenName))) == PEG_NOT_FOUND)
         {
-            cimcliMsg::msg("Warning: "
-                "Parameter $0 not valid method parameter in class $1",
-                _tokens[index].tokenName.getString(),
-                _className.getString());
+            cimcliMsg::errmsg(MessageLoaderParms(
+                    "Clients.cimcli.CIMCLIClient.PARAM_NOT_IN_CLASS",
+                    "Warning: Parameter $0 not valid method parameter in"
+                    " class $1.",
+                    name.getString(),
+                    _className.getString() ));
+            //#N substitution {0} is a string with the parameter name
+            //#N substitution {1} is a string with the class name
+            //#N @version 2.14
+            //#P 37
+            //#T PARAM_NOT_IN_CLASS
+            //#S Warning: Parameter {0} not valid method parameter in class {0}.
 
             CIMValue v(_tokens[index].tokenValue);
             CIMParamValue rtnParamValue(
@@ -1361,15 +1512,25 @@ Array<CIMParamValue> ObjectBuilder::buildMethodParameters(CIMName& name)
             }
             else    // If scalar, multiples are illegal.
             {
-                cimcliMsg::exit(CIMCLI_INPUT_ERR,
-                    "Multiple definition of scalar parameter name=$0",
-                    thisParameter.getName().getString());
+                cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                    "Clients.cimcli.CIMCLIClient.PARAMNAME_DUP_ERR",
+                    "Multiple definitions of scalar parameter named $0",
+                    thisParameter.getName().getString() ));
+
+                //#N substitution {0} is a string with a parameter name
+                //#N @version 2.14
+                //#P 38
+                //#T PARAMNAME_DUP_ERR
+                //#S Multiple definitions of scalar parameter named {0}.
             }
         }
 
         // Build a ParamValue from the token, Class Parameter and
         // current CIMValue elements
-        if (verboseTest) {_tokens[index].print();}
+        if (verboseTest)
+        {
+            _tokens[index].print();
+        }
 
         CIMParamValue rtnParamValue = _buildMethodParamValue(
             _tokens[index],
@@ -1380,9 +1541,16 @@ Array<CIMParamValue> ObjectBuilder::buildMethodParameters(CIMName& name)
         // failed to build the parameter.  Fatal error
         if (rtnParamValue.isUninitialized())
         {
-            cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
-            "Parse Error adding parameter $0",
-                _tokens[index].tokenInput);
+            cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PARAM_TOKEN_ERR",
+                "Parse Error adding parameter $0",
+                _tokens[index].tokenInput));
+
+            //#N substitution {0} is a string with the parameter in error
+            //#N @version 2.14
+            //#P 39
+            //#T PARAM_TOKEN_ERR
+            //#S Parse Error adding parameter {0}.
         }
 
         // Append parameter to return list.
@@ -1406,9 +1574,17 @@ CIMValue ObjectBuilder::buildPropertyValue(
 
     if ((propertyPos = _thisClass.findProperty(name)) == PEG_NOT_FOUND)
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.PROP_NOT_IN_CLASS_ERR",
             "Property $0 not property in class $1",
-                name.getString(), _className.getString());
+            name.getString(), _className.getString()));
+
+        //#N substitution {0} is a string with property name in error
+        //#N substitution {1} is a string with a class name
+        //#N @version 2.14
+        //#P 40
+        //#T PROP_NOT_IN_CLASS_ERR
+        //#S Property {0} not property in class {1}.
     }
     else
     {
@@ -1420,8 +1596,15 @@ CIMValue ObjectBuilder::buildPropertyValue(
 
     if ((type == CIMTYPE_INSTANCE) || (type == CIMTYPE_OBJECT))
     {
-        cimcliMsg::exit(CIMCLI_INPUT_ERR,
-            "Input of Instance or object types not allowed");
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.TYPE_NOT_ALLOWED_ERR",
+            "Input of Instance or Object types not allowed. Property $0",
+            name.getString()));
+        //#N substition {0} property name of input causing error
+        //#N @version 2.14
+        //#P 41
+        //#T TYPE_NOT_ALLOWED_ERR
+        //#S Input of Instance or Object types not allowed. Property {0}.
     }
 
     if (vp.isArray())
@@ -1450,16 +1633,10 @@ void ObjectBuilder::appendToken(tokenItem ti)
 
 void  ObjectBuilder::print()
 {
-    cout << "ObjectBuilder instance\n"
-         << "ClassName=" << _className.getString();
-    if (!_instance.isUninitialized())
-    {
-        cout << "Instance exists" << endl;
-    }
-    else
-    {
-        cout << "No instance" << endl;
-    }
+    cout << "ObjectBuilder instance for "
+         << "ClassName= " << _className.getString()
+         << (!_instance.isUninitialized() ? " exists." : " does not exist.")
+         << endl;
     printTokens();
 }
 

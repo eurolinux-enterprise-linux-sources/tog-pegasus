@@ -290,6 +290,138 @@ public:
         Array<CIMParamValue>& outParameters
     );
 
+// EXP_PULL_BEGIN
+    virtual CIMResponseData openEnumerateInstances(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMName& className,
+        Boolean deepInheritance = false,
+        Boolean includeClassOrigin = false,
+        const CIMPropertyList& propertyList = CIMPropertyList(),
+        const String& filterQueryLanguage = String::EMPTY,
+        const String& filterQuery = String::EMPTY,
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData openEnumerateInstancePaths(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMName& className,
+        const String& filterQueryLanguage = String(),
+        const String& filterQuery = String(),
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData openReferenceInstances(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMObjectPath& objectName,
+        const CIMName& resultClass = CIMName(),
+        const String& role = String::EMPTY,
+        Boolean includeClassOrigin = false,
+        const CIMPropertyList& propertyList = CIMPropertyList(),
+        const String& filterQueryLanguage = String(),
+        const String& filterQuery = String(),
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData openReferenceInstancePaths(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMObjectPath& objectName,
+        const CIMName& resultClass = CIMName(),
+        const String& role = String::EMPTY,
+        const String& filterQueryLanguage = String(),
+        const String& filterQuery = String(),
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData openAssociatorInstances(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMObjectPath& objectName,
+        const CIMName& assocClass = CIMName(),
+        const CIMName& resultClass = CIMName(),
+        const String& role = String::EMPTY,
+        const String& resultRole = String::EMPTY,
+        Boolean includeClassOrigin = false,
+        const CIMPropertyList& propertyList = CIMPropertyList(),
+        const String& filterQueryLanguage = String(),
+        const String& filterQuery = String(),
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData openAssociatorInstancePaths(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const CIMObjectPath& objectName,
+        const CIMName& assocClass = CIMName(),
+        const CIMName& resultClass = CIMName(),
+        const String& role = String::EMPTY,
+        const String& resultRole = String::EMPTY,
+        const String& filterQueryLanguage = String(),
+        const String& filterQuery = String(),
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+
+    virtual CIMResponseData pullInstancesWithPath(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        Uint32 maxObjectCount
+    );
+
+    virtual CIMResponseData pullInstancePaths(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        Uint32 maxObjectCount
+    );
+
+    virtual CIMResponseData pullInstances(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        Uint32 maxObjectCount
+    );
+
+    virtual void closeEnumeration(
+        CIMEnumerationContext& enumerationContext
+    );
+
+    virtual Uint64Arg enumerationCount(
+        CIMEnumerationContext& enumerationContext
+    );
+
+    virtual CIMResponseData openQueryInstances(
+        CIMEnumerationContext& enumerationContext,
+        Boolean& endOfSequence,
+        const CIMNamespaceName& nameSpace,
+        const String& queryLanguage,
+        const String& query,
+        CIMClass& queryResultClass,
+        Boolean returnQueryResultClass = false,
+        const Uint32Arg& operationTimeout = Uint32Arg(),
+        Boolean continueOnError = false,
+        Uint32 maxObjectCount = 0
+    );
+ //EXP_PULL_END
+
     void registerClientOpPerformanceDataHandler(
         ClientOpPerformanceDataHandler & handler);
 
@@ -306,7 +438,7 @@ public:
 private:
 
     void _connect(bool binaryRequest, bool binaryResponse);
-    void _disconnect();
+    void _disconnect(bool keepChallengeStatus = false);
     void _connectLocal(bool binary);
 
     Message* _doRequest(
@@ -345,6 +477,61 @@ private:
     ContentLanguageList responseContentLanguages;
     bool _binaryRequest;
     bool _localConnect;
+};
+
+/****************************************************************************
+**
+**   Implementation of ClientTrace class.  This allows setup of variables
+**   to control display of Client network send and receive.
+**
+****************************************************************************/
+// Tests for Display optons of the form:
+// Env variable PEGASUS_CLIENT_TRACE= <intrace> : <outtrace
+// intrace = "con" | "log" | "both"
+// outtrace = intrace
+// ex set PEGASUS_CLIENT_TRACE=BOTH:BOTH traces input and output
+// to console and log
+// Keywords are case insensitive.
+// PEP 90
+// options allowed are:
+//     keyword:keyword  separately define input and output
+//     keyword:         Input only
+//     :keyword         Output Only
+//     keyword          Input and output defined by keyword
+//
+class ClientTrace
+{
+public:
+    // Bit flags, that define what is to be displayed.
+    enum TraceType
+    {
+        TRACE_NONE = 0,
+        TRACE_CON = 1,
+        TRACE_LOG = 2,
+        TRACE_BOTH = 3
+    };
+
+    // setup the control variables from env variable
+    static void setup();
+
+    // Called from OperationRequest and Response handlers to test for
+    // particular masks set.  Return true if the TraceType mask defined by
+    // tt is set in the state variable.
+    static Boolean displayOutput(TraceType tt);
+    static Boolean displayInput(TraceType tt);
+
+private:
+    // constructors, etc. are private and not to be used.
+    ClientTrace();
+    ClientTrace(ClientTrace const&);
+    ClientTrace& operator=(ClientTrace const&);
+
+    // internal function to translate input strings to TraceTypes
+    static TraceType selectType(const String& str);
+
+    // Define the display states set by setup.
+    static Uint32 inputState;
+    static Uint32 outputState;
 };
 
 PEGASUS_NAMESPACE_END

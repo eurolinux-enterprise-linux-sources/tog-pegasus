@@ -1,0 +1,41 @@
+diff -up pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig pegasus/rpm/manLinux/man8.Z/cimconfig.8
+--- pegasus/rpm/manLinux/man8.Z/cimconfig.8.orig	2015-09-22 09:53:48.421609045 +0200
++++ pegasus/rpm/manLinux/man8.Z/cimconfig.8	2015-09-22 09:56:53.443396471 +0200
+@@ -470,9 +470,8 @@ like .+, !, -.
+ 
+ .B sslBackwardCompatibility
+ .IP
+-.BR Description: "This setting specifies whether the ssl supports SSLv3 
+-and versions of TLS lesser than 1.2 .Ideally for security Compilance 
+-purposes it is by default set to false. 
++.BR Description: "This setting specifies whether the ssl supports SSLv3. 
++Ideally for security Compilance purposes it is by default set to false. 
+ .PD 0
+ .IP
+ .BR "Default Value: " false
+diff -up pegasus/src/Pegasus/Common/SSLContext.cpp.orig pegasus/src/Pegasus/Common/SSLContext.cpp
+--- pegasus/src/Pegasus/Common/SSLContext.cpp.orig	2015-09-22 09:46:36.294783162 +0200
++++ pegasus/src/Pegasus/Common/SSLContext.cpp	2015-09-22 09:57:44.339613302 +0200
+@@ -728,20 +728,9 @@ SSL_CTX* SSLContextRep::_makeSSLContext(
+     if ( _sslCompatibility == false )
+     {
+ 
+-#ifdef TLS1_2_VERSION
+-        // Enable only TLSv1.2 and disable all other protocol (SSL v2, SSL v3,
+-        // TLS v1.0, TLSv1.1)
++        // Disable SSLv3
+ 
+-        options = SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_SSLv3;
+-#else
+-        PEG_METHOD_EXIT();
+-        MessageLoaderParms parms(
+-            " Common.SSLContext.TLS_1_2_PROTO_NOT_SUPPORTED",
+-            "TLSv1.2 protocol support is not detected on this system. "
+-            " To run in less secured mode, set sslBackwardCompatibility=true"
+-            " in planned config file and start cimserver.");
+-        throw SSLException(parms);
+-#endif
++        options = SSL_OP_NO_SSLv3;
+     }
+ 
+     // sslv2 is off permanently even if sslCompatibility is true

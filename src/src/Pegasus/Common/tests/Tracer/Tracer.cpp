@@ -45,6 +45,9 @@
 PEGASUS_USING_STD;
 PEGASUS_USING_PEGASUS;
 
+//constants value
+const String _traceFileSizeKBytes = "10240";
+const String _numberOfTraceFiles = "3";
 
 // Trace Levels 0 and 5 are defined as private constants of the tracer
 // class to avoid inappropriate use in the trace calls and macros.
@@ -137,8 +140,7 @@ Uint32 compare(const char* fileName, const char* expectedMessage)
 //
 Uint32 test1()
 {
-    const char* METHOD_NAME = "test1";
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test1");
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s %d",
         "This message should not appear value=",123));
     PEG_METHOD_EXIT();
@@ -158,9 +160,10 @@ Uint32 test1()
 //
 Uint32 test2()
 {
-    const char* METHOD_NAME = "test2";
     Tracer::setTraceFile(FILE1);
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    Tracer::setMaxTraceFileSize (_traceFileSizeKBytes);
+    Tracer::setMaxTraceFileNumber(_numberOfTraceFiles);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test2");
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s %d",
         "This message should not appear value=",123));
     Uint32 fileSize = 0;
@@ -181,9 +184,8 @@ Uint32 test2()
 //
 Uint32 test3()
 {
-    const char* METHOD_NAME = "test3";
     Tracer::setTraceLevel(Tracer::LEVEL1);
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test3");
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s",
         "This message should not appear"));
     Uint32 fileSize = 0;
@@ -204,11 +206,10 @@ Uint32 test3()
 //
 Uint32 test4()
 {
-    const char* METHOD_NAME = "test4";
     Tracer::setTraceLevel(Tracer::LEVEL1);
     Tracer::setTraceComponents("Config");
-    PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL1,METHOD_NAME);
-    return(compare(FILE1,METHOD_NAME));
+    PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL1,"test4");
+    return(compare(FILE1,"test4"));
 }
 
 //
@@ -224,11 +225,10 @@ Uint32 test4()
 //
 Uint32 test5()
 {
-    const char* METHOD_NAME = "test5";
     Tracer::setTraceComponents("Wrong Component Name");
 
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
-    PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL1,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test5");
+    PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL1,"test5");
     PEG_METHOD_EXIT();
     return(compare(FILE1,"test4"));
 }
@@ -247,13 +247,12 @@ Uint32 test5()
 
 Uint32 test6()
 {
-    const char* METHOD_NAME = "test6";
     Tracer::setTraceComponents("Config");
     Tracer::setTraceLevel(Tracer::LEVEL2);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s %s",
-        "Test Message for Level2 in",METHOD_NAME));
+        "Test Message for Level2 in","test6"));
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s %s",
-        "Test Message for Level2 in",METHOD_NAME));
+        "Test Message for Level2 in","test6"));
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL4,"%s",
         "This Message should not appear"));
     return(compare(FILE1,"Test Message for Level2 in test6"));
@@ -272,9 +271,8 @@ Uint32 test6()
 //
 Uint32 test7()
 {
-    const char* METHOD_NAME = "test7";
     Tracer::setTraceLevel(100);
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test7");
     PEG_METHOD_EXIT();
     return(compare(FILE1,"Test Message for Level2 in test6"));
 }
@@ -291,13 +289,12 @@ Uint32 test7()
 //
 Uint32 test9()
 {
-    const char* METHOD_NAME = "test9";
     Tracer::setTraceLevel(Tracer::LEVEL3);
     Tracer::setTraceFile(FILE2);
 
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test9");
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL3,"%s %s",
-        "Test Message for Level3 in",METHOD_NAME));
+        "Test Message for Level3 in","test9"));
     return(compare(FILE2,"Test Message for Level3 in test9"));
 }
 
@@ -317,9 +314,8 @@ Uint32 test9()
 
 Uint32 test10()
 {
-    const char* METHOD_NAME = "test10";
     Tracer::setTraceComponents("ALL");
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test10");
     PEG_METHOD_EXIT();
     return(compare(FILE2,"Test Message for Level3 in test9"));
 }
@@ -338,11 +334,10 @@ Uint32 test10()
 
 Uint32 test11()
 {
-    const char* METHOD_NAME = "test11";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(PEGASUS_TRACER_LEVEL0);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL1,"%s %s",
-        "Test Message for Level0 in",METHOD_NAME));
+        "Test Message for Level0 in","test11"));
     return(compare(FILE2,"Test Message for Level3 in test9"));
 }
 
@@ -360,11 +355,10 @@ Uint32 test11()
 
 Uint32 test12()
 {
-    const char* METHOD_NAME = "test12";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL1,"%s %s",
-        "Test Message for Level1 in",METHOD_NAME));
+        "Test Message for Level1 in","test12"));
     return(compare(FILE2,"Test Message for Level1 in test12"));
 }
 
@@ -382,11 +376,10 @@ Uint32 test12()
 
 Uint32 test13()
 {
-    const char* METHOD_NAME = "test13";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL2,"%s %s",
-        "Test Message for Level2 in",METHOD_NAME));
+        "Test Message for Level2 in","test13"));
     return(compare(FILE2,"Test Message for Level2 in test13"));
 }
 
@@ -404,12 +397,11 @@ Uint32 test13()
 
 Uint32 test14()
 {
-    const char* METHOD_NAME = "test14";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     Tracer::setTraceFile(FILE3);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL3,"%s %s",
-        "Test Message for Level3 in",METHOD_NAME));
+        "Test Message for Level3 in","test14"));
     return(compare(FILE3,"Test Message for Level3 in test14"));
 }
 
@@ -427,11 +419,10 @@ Uint32 test14()
 
 Uint32 test15()
 {
-    const char* METHOD_NAME = "test15";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL4,"%s %s",
-        "Test Message for Level4 in",METHOD_NAME));
+        "Test Message for Level4 in", "test15"));
     return(compare(FILE3,"Test Message for Level4 in test15"));
 }
 
@@ -449,10 +440,9 @@ Uint32 test15()
 
 Uint32 test15a()
 {
-    const char* METHOD_NAME = "test15a";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(PEGASUS_TRACER_LEVEL5);
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test15a");
     return(compare(FILE3,"Entering method test15a"));
 }
 
@@ -470,10 +460,9 @@ Uint32 test15a()
 
 Uint32 test15b()
 {
-    const char* METHOD_NAME = "test15b";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(PEGASUS_TRACER_LEVEL5);
-    PEG_METHOD_ENTER(TRC_CONFIG,METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG,"test15b");
     PEG_METHOD_EXIT();
     return(compare(FILE3,"Exiting method test15b"));
 }
@@ -492,14 +481,13 @@ Uint32 test15b()
 
 Uint32 test16()
 {
-    const char* METHOD_NAME = "test16";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(PEGASUS_TRACER_LEVEL5);
     PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL4,"test16 - check value");
     Tracer::setTraceComponents("");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL4,"%s %s",
-    "This Message should not appear in",METHOD_NAME));
+    "This Message should not appear in","test16"));
     return(compare(FILE3,"test16 - check value"));
 }
 
@@ -517,14 +505,13 @@ Uint32 test16()
 
 Uint32 test17()
 {
-    const char* METHOD_NAME = "test17";
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(PEGASUS_TRACER_LEVEL5);
     PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL4,"test17 - check value");
     Tracer::setTraceComponents("InvalidComp");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL4,"%s %s",
-    "This Message should not appear in",METHOD_NAME));
+    "This Message should not appear in", "test17"));
     return(compare(FILE3,"test17 - check value"));
 }
 //
@@ -541,7 +528,6 @@ Uint32 test17()
 
 Uint32 test18()
 {
-    const char* METHOD_NAME = "test18";
     Tracer::setTraceComponents("Config,InvalidComp");
     Tracer::setTraceLevel(Tracer::LEVEL4);
     PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL4,
@@ -564,12 +550,11 @@ Uint32 test18()
 
 Uint32 test20()
 {
-    const char* METHOD_NAME = "test20";
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
 
-    PEG_METHOD_ENTER(TRC_CONFIG, METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG, "test20");
     PEG_TRACE((TRC_CONFIG,Tracer::LEVEL4,
     "Test Message for Level4 in test20"));
     return(compare(FILE4,"Test Message for Level4 in test20"));
@@ -590,12 +575,11 @@ Uint32 test20()
 
 Uint32 test21()
 {
-    const char* METHOD_NAME = "test21";
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
 
-    PEG_METHOD_ENTER(TRC_CONFIG, METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG, "test21");
 
     // test tracing CIMException
     try
@@ -625,12 +609,11 @@ Uint32 test21()
 //
 Uint32 test22()
 {
-    const char* METHOD_NAME = "test22";
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
 
-    PEG_METHOD_ENTER(TRC_CONFIG, METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG, "test22");
 
     PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL4,
         "Test message for Level4 in test22.");
@@ -651,12 +634,11 @@ Uint32 test22()
 //
 Uint32 test23()
 {
-    const char* METHOD_NAME = "test23";
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
     Tracer::setTraceLevel(Tracer::LEVEL4);
 
-    PEG_METHOD_ENTER(TRC_CONFIG, METHOD_NAME);
+    PEG_METHOD_ENTER(TRC_CONFIG, "test23");
 
     PEG_TRACE_CSTRING(TRC_CONFIG,Tracer::LEVEL4,
                       "Test message for Level4 in test23.");
@@ -677,7 +659,6 @@ Uint32 test23()
 //
 Uint32 test24()
 {
-    const char* METHOD_NAME = "test24";
     Tracer::setTraceFacility("Log");
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
@@ -702,7 +683,6 @@ Uint32 test24()
 //
 Uint32 test25()
 {
-    const char* METHOD_NAME = "test25";
     Tracer::setTraceFacility("File");
     Tracer::setTraceFile(FILE4);
     Tracer::setTraceComponents("ALL");
@@ -732,7 +712,6 @@ Uint32 test26()
     Tracer::setTraceComponents("xmlio");
     Tracer::setTraceLevel(Tracer::LEVEL2);
 
-    Uint32 queueId = 18;
     CIMPropertyList propertyList;
     Buffer params;
     AcceptLanguageList al;
@@ -759,7 +738,7 @@ Uint32 test26()
         TRC_XML_IO,
         Tracer::LEVEL2,
         "<!-- Request: queue id: %u -->\n%s",
-        queueId,
+        18,
         reqMsg.get()));
 
     return(compare(FILE4, buffer.getData()));
@@ -784,7 +763,6 @@ Uint32 test27()
     Tracer::setTraceComponents("xmlio");
     Tracer::setTraceLevel(Tracer::LEVEL2);
 
-    Uint32 queueId = 18;
     CIMPropertyList propertyList;
     Buffer params;
     AcceptLanguageList al;
@@ -812,7 +790,7 @@ Uint32 test27()
         TRC_XML_IO,
         Tracer::LEVEL2,
         "<!-- Request: queue id: %u -->\n%s",
-        queueId,
+        18,
         Tracer::getHTTPRequestMessage(
             buffer).get()));
 

@@ -40,12 +40,12 @@
 PEGASUS_USING_PEGASUS;
 PEGASUS_USING_STD;
 
+#define VCOUT if (verbose) cout
+
 static Boolean verbose;
 
-int test(int argc, char** argv)
+void test1()
 {
-    verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
-
     String s1 = "Hello World";
     String s2 = s1;
     String s3(s2);
@@ -1441,15 +1441,275 @@ int test(int argc, char** argv)
     }
     PEGASUS_TEST_ASSERT(caughtBadAlloc);
 
-    cout << argv[0] << " +++++ passed all tests" << endl;
-
     char* p = (char*)operator new(88888);
     operator delete(p);
-
-    return 0;
 }
 
-int main(int argc, char** argv)
+// Test appendPrintf
+void testappendPrintf()
 {
-    return test(argc, argv);
+    // Test the various basic C++ basic integer  and string types
+    {
+        String prtf;
+        prtf.appendPrintf("%u", 1234);
+        PEGASUS_TEST_ASSERT(prtf == "1234");
+    }
+
+    {
+        String prtf;
+        const char* teststr = "1234";
+        prtf.appendPrintf("%s", teststr);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == teststr);
+    }
+
+    {
+        String prtf;
+        const char* teststr = "123456789abcdefghighklmnopqrstuvwxyz!@#$%^&*()";
+        prtf.appendPrintf("%s", teststr);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == teststr);
+    }
+
+    {
+        String prtf;
+        unsigned int usi = 948;
+        prtf.appendPrintf("%u", usi);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "948");
+    }
+    {
+        String prtf;
+        unsigned int si = -948;
+        prtf.appendPrintf("%d", si);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "-948");
+    }
+    {
+        String prtf;
+        unsigned long int  uli= 888888;
+        prtf.appendPrintf("%lu", uli);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "888888");
+
+    }
+
+    // test against the Pegasus types cast
+    {
+        String prtf;
+        Uint64 u64 = 99999;
+        prtf.appendPrintf("%lu", (unsigned long int) u64);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "99999");
+    }
+
+    {
+        String prtf;
+        Uint32 u32 = 32512;
+        prtf.appendPrintf("%u", (unsigned int)u32);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "32512");
+    }
+
+    {
+        String prtf;
+        Uint32 u32 = 32;
+        Uint64 u64 = 99999;
+        Sint32 s32 = -12;
+        signed long int  sli = 12345678;
+        char str1[] = "abcd";
+        String str2 = "cdef";
+        const char* str3 = "defg";
+        prtf.appendPrintf(" Test %u %lu %d %ld %s%s%s%s ", (unsigned int)u32,
+               (unsigned long)u64, (int)s32, sli,
+               str1, (const char *)str2.getCString(), str3, "hijk");
+
+        String result = " Test 32 99999 -12 12345678 abcdcdefdefghijk ";
+        VCOUT << "prtf    " << prtf << "\nresult  " << result << endl;
+        PEGASUS_TEST_ASSERT(prtf == result);
+    }
+
+    {
+        String prtf = "abcd";
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        String result = "abcdefghijkl";
+        PEGASUS_TEST_ASSERT(prtf == result);
+    }
+
+    {
+        Uint32 a = 1;
+        Uint32 b = 2;
+        Uint32 c = 3;
+        Uint32 d = 4;
+        Uint64 e = 99999;
+
+        String prtf = "abcd";
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        prtf.appendPrintf("%s", "efgh");
+        prtf.appendPrintf("%s", "ijkl");
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",a);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",b);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",c);
+        prtf.appendPrintf("this is going to be a big string so we realloc%u",d);
+        prtf.appendPrintf("more big string so we realloc%llu",e);
+        String result = "abcdefghijklthis is going to be a big string so we"
+                        " realloc1this is going to be a big string so we "
+                        "realloc2this is going to be a big string so we "
+                        "realloc3this is going to be a big string so we "
+                        "realloc4more big string so we realloc99999efghijklthis"
+                        " is going to be a big string so we realloc1this is"
+                        " going to be a big string so we realloc2this is going"
+                        " to be a big string so we realloc3this is going to be"
+                        " a big string so we realloc4more big string so we"
+                        " realloc99999efghijklthis is going to be a big string"
+                        " so we realloc1this is going to be a big string so"
+                        " we realloc2this is going to be a big string so we"
+                        " realloc3this is going to be a big string so we"
+                        " realloc4more big string so we realloc99999efgh"
+                        "ijklthis is going to be a big string so we realloc"
+                        "1this is going to be a big string so we realloc2th"
+                        "is is going to be a big string so we realloc3this "
+                        "is going to be a big string so we realloc4more big"
+                        " string so we realloc99999efghijklthis is going to"
+                        " be a big string so we realloc1this is going to be"
+                        " a big string so we realloc2this is going to be a big"
+                        " string so we realloc3this is going to be a big"
+                        " string so we realloc4more big string so we "
+                        "realloc99999efghijklthis is going to be a big string"
+                        " so we realloc1this is going to be a big string so we"
+                        " realloc2this is going to be a big string so we"
+                        " realloc3this is going to be a big string so we reall"
+                        "oc4more big string so we realloc99999efghijklthis is"
+                        " going to be a big string so we realloc1this is going"
+                        " to be a big string so we realloc2this is going to be"
+                        " a big string so we realloc3this is going to be a big"
+                        " string so we realloc4more big string so we realloc"
+                        "99999efghijklthis is going to be a big string so we"
+                        " realloc1this is going to be a big string so we rea"
+                        "lloc2this is going to be a big string so we realloc"
+                        "3this is going to be a big string so we realloc4mor"
+                        "e big string so we realloc99999";
+        VCOUT  << prtf << endl;
+
+        PEGASUS_TEST_ASSERT(prtf == result);
+
+    }
+// The following are not normally compiled.  They test that compile
+// errors are generated on at least the supported compilers when
+// there are differences between the format string and the input arguments
+// Today this is only the gcc compiler
+
+// Enable following define to test compile warning generation.
+//#define COMPILER_ERROR_TESTS
+#ifdef COMPILER_ERROR_TESTS
+    // Test of compiler generating errors in printf specification
+    {
+        String prtf;
+        prtf.appendPrintf("%u incompatible type", "1234");
+        VCOUT << __LINE__ << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "1234");
+    }
+    {
+        String prtf;
+        prtf.appendPrintf("%s incompatible type", 1234);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "1234");
+    }
+    {
+        String prtf;
+        Uint64 u64 = 99999;
+        prtf.appendPrintf("%lu no cast", u64);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "99999");
+    }
+    {
+        String prtf;
+        Uint32 u32 = 32512;
+        prtf.appendPrintf("%lu incompatible type", (unsigned int)u32);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "32512");
+    }
+    {
+        String prtf;
+        Uint32 u32 = 32512;
+        prtf.appendPrintf("No format cmds", (unsigned int)u32);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "32512");
+    }
+    {
+        String prtf;
+        Uint32 u32 = 32512;
+        prtf.appendPrintf("%u using Uint32", u32);
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "32512");
+    }
+    {
+        String prtf;
+        Uint32 u32 = 32512;
+        prtf.appendPrintf("%u extra arg",(unsigned int)u32, "arg 2");
+        VCOUT << __LINE__ << " " << prtf << endl;
+        PEGASUS_TEST_ASSERT(prtf == "32512");
+    }
+#endif
+
+}
+
+int main(int, char** argv)
+{
+    verbose = (getenv("PEGASUS_TEST_VERBOSE")) ? true : false;
+
+    test1();
+    testappendPrintf();
+
+    cout << argv[0] << " +++++ passed all tests" << endl;
+    return 0;
 }

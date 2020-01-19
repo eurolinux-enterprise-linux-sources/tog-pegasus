@@ -90,14 +90,17 @@ void testInstancesTransfer(
     }
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     String  oldRepositoryPath = argv[1];
     String  newRepositoryPath = argv[2];
-    Boolean bVerbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
 
     CIMRepository oldRepository(oldRepositoryPath);
     CIMRepository newRepository(newRepositoryPath);
+#ifdef NS_INTEROP
+    String  masterRepositoryPath = argv[3];
+    CIMRepository masterRepository(masterRepositoryPath);
+#endif
 
     testQualifierTransfer(oldRepository, newRepository, TESTNS, "ASSOCIATION");
     testQualifierTransfer(oldRepository, newRepository, TESTNS, "Description");
@@ -128,6 +131,12 @@ int main(int argc, char** argv)
     testInstancesTransfer(
         oldRepository, newRepository, TESTNS, "TST_PersonS");
 
+#ifdef NS_INTEROP
+    // interop support testing
+    testInstancesTransfer( newRepository, masterRepository, 
+        PEGASUS_NAMESPACENAME_INTEROP, "TST_Lineage");
+#endif
+    
     cout << argv[0] << " +++++ passed all tests" << endl;
     return 0;
 }

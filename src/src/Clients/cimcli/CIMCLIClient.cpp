@@ -42,13 +42,15 @@
 #include <Pegasus/Common/XmlWriter.h>
 #include <Pegasus/Common/Tracer.h>
 #include <Pegasus/Common/StringConversion.h>
-#include <Pegasus/Common/ArrayInternal.h>
 
 #include <Pegasus/Common/PegasusVersion.h>
 
 #include <Pegasus/General/MofWriter.h>
 #include <Pegasus/Common/Print.h>
 #include <Pegasus/Common/HashTable.h>
+#include <Pegasus/Common/Pegasus_inl.h>
+#include <Pegasus/Common/PegasusAssert.h>
+#include <Pegasus/General/Stopwatch.h>
 
 #include "CIMCLIClient.h"
 
@@ -96,6 +98,36 @@ void _stopCommandTimer(Options& opts)
     }
 }
 
+double _getElapsedTime(Options& opts)
+{
+    if (opts.time)
+    {
+        opts.elapsedTime.stop();
+        double rtn =  opts.elapsedTime.getElapsed();
+        opts.elapsedTime.start();
+        return rtn;
+    }
+    return 0;
+}
+
+// get a String that is the elapsed time to hundredths of a
+// second (2 decimal places)
+String _getElapsedTimeFmtd(Options& opts)
+{
+    String str;
+    if (opts.time)
+    {
+        opts.elapsedTime.stop();
+        double rtn =  opts.elapsedTime.getElapsed();
+        opts.elapsedTime.start();
+        str.appendPrintf("%1.2f sec ", rtn);
+
+        return str;
+    }
+    return "0 sec ";
+}
+
+
 /************************************************************************
 *
 *   Display functions to support the verbose display of input parameters
@@ -110,6 +142,57 @@ void _showValueParameters(const Options& opts)
     }
     cout << endl;
 }
+
+//KS_PULL_BEGIN
+// Map Uint32 to a Pegasus string
+String _toString(Uint32 i)
+{
+    char scratchBuffer[22];
+    Uint32 n;
+    String s = Uint32ToString(scratchBuffer,i,n);
+    return(s);
+}
+
+// display for Uint32 arguments.  Displays the value
+// or NULL
+String _toString(Uint32Arg x)
+{
+    char scratchBuffer[22];
+    Uint32 n;
+    String s = ((x.isNull()?
+        "NULL"
+        :
+        //_toString(x.getValue()) )
+        Uint32ToString(scratchBuffer,x.getValue(),n) )
+        );
+
+    return(s);
+}
+
+/*
+    Test the received response element count against the
+    maximum allowed for this response.
+    @return true if too many
+*/
+Boolean _testRcvTooManyElements(
+    const Uint32Arg& maxObjectCount,
+    Uint32 returnedElementCount, Boolean verbose)
+{
+    if (!maxObjectCount.isNull())
+    {
+        if ((maxObjectCount.getValue() < returnedElementCount) && verbose)
+        {
+             cout << "Error. Operation"
+                    " returned more than requested elements."
+                << " Returned " << returnedElementCount << " elements. "
+                << "maxObjectCount = " << maxObjectCount.getValue() << endl;
+             return(true);
+        }
+    }
+    // We can only return true if we sent Null
+    return(false);
+}
+//KS_PULL_END
 
 // Map the keybinding values from any CIMObjectPath that was input into
 // our standard input form for use by objectBuilder.
@@ -302,9 +385,9 @@ Boolean _compareProperty(CIMProperty& propTest,
         if (display)
         {
             cout << "isArray Attributes differ differ. "
-                 << _toString(propTest.isArray())
+                 << boolToString(propTest.isArray())
                  << " vs. "
-                 << _toString(propRtnd.isArray())
+                 << boolToString(propRtnd.isArray())
                  << endl;
         }
         rtn = false;
@@ -347,9 +430,9 @@ Boolean _compareProperty(CIMProperty& propTest,
             if (display)
             {
                 cout << "getPropagated values differ.  "
-                     << _toString(propTest.getPropagated())
+                     << boolToString(propTest.getPropagated())
                      << " vs. "
-                     << _toString(propRtnd.getPropagated())
+                     << boolToString(propRtnd.getPropagated())
                      << endl;
             }
             rtn = false;
@@ -749,9 +832,14 @@ void _resolveIncludeQualifiers(Options& opts, Boolean defaultValue)
     // Assure niq and iq not both supplied. They are incompatible
     if (opts.includeQualifiersRequested && opts.notIncludeQualifiersRequested)
     {
-        cerr << "Error: -niq and -iq parameters cannot be used together"
-             << endl;
-        cimcliExit(CIMCLI_INPUT_ERR);
+        cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.INC_QUAL_PARM_ERR",
+            "Error: -niq and -iq parameters cannot be used together."));
+        //#N -niq and -iq are literals. Do not translate
+        //#N @version 2.14
+        //#P 50
+        //#T INC_QUAL_PARM_ERR
+        //#S Error: -niq and -iq parameters cannot be used together.
     }
     // if default is true (ex class operations), we test for -niq received
     // depend only on the -niq input.
@@ -956,7 +1044,7 @@ int enumerateAllInstanceNames(Options& opts)
                 // current entry counter
                 if (!instCounter.insert(className, 1))
                 {
-                    Uint32* value;
+                    Uint32* value=0;
                     instCounter.lookupReference(className, value);
                     *value = *value + 1;
                 }
@@ -1076,11 +1164,13 @@ int enumerateInstances(Options& opts)
         cout << "EnumerateInstances "
             << "Namespace = " << opts.nameSpace
             << ", Class = " << opts.className.getString()
-            << ", deepInheritance = " << _toString(opts.deepInheritance)
-            << ", localOnly = " << _toString(opts.localOnly)
-            << ", includeQualifiers = " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin = " << _toString(opts.includeClassOrigin)
-            << ", PropertyList = " << _toString(opts.propertyList)
+            << ", deepInheritance = " << boolToString(opts.deepInheritance)
+            << ", localOnly = " << boolToString(opts.localOnly)
+            << ", includeQualifiers = "
+                << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin = "
+                << boolToString(opts.includeClassOrigin)
+            << ", PropertyList = " << opts.propertyList.toString()
             << endl;
     }
 
@@ -1103,6 +1193,821 @@ int enumerateInstances(Options& opts)
     return CIMCLI_RTN_CODE_OK;
 }
 
+//KS_PULL_BEGIN
+/************************** Pull Common functions  ***************************/
+
+/*
+    These common functions serve for pulling all of the opened operations.
+    They provide a loop to pull either instances or CIMObjectPaths until one
+    of the following end conditions is met:
+        endOfSequence found
+        maxObjToReceive hit (if maxObjToReceive != 0)
+        Exception or CIMException - Handled outside these functions.
+
+    These functions also execute an inter-pull-operation delay if the
+    pullDelay parameter is set.
+
+    The complete set of instances or paths received is returned.
+    KS_TODO - Keep more detailed statistics on pull, how many received,
+    timing, etc.
+
+*/
+
+/**
+ * _pullInstancesWithPath executes the proper pullInstances function in
+ * a loop to get everything until either endOfSequence received
+ * or the size limit defined on input is received.
+ * @param  instances Array<CIMInstance> pulled
+ * @param  enumerationContext CIMEnumerationContext for this
+ *                            operation
+ * @param withPath Boolean that defines whether the
+ *                 pullInstancesWithPath or pullInstances should
+ *                 be executed.
+ */
+
+int _pullInstancesWithPath(
+    Options& opts,
+    Array<CIMInstance>& instances,
+    CIMEnumerationContext& enumerationContext,
+    Boolean withPath = true)
+{
+    Boolean endOfSequence = false;
+    Uint32 maxPullObj = opts.maxObjectCount;
+    Uint32 maxObjToReceive = opts.maxObjectsToReceive;
+    Boolean rtn = true;
+    Boolean limitSize = (maxObjToReceive == 0)? false: true;
+
+    while (!endOfSequence)
+    {
+        // If max objects limit defined on input, end and return true
+        if (limitSize && (instances.size() >= maxObjToReceive))
+        {
+            if (opts.verboseTest)
+            {
+                cout <<_getElapsedTimeFmtd(opts)
+                    << "Issuing closeEnumeration after "
+                     << instances.size() << " received because hit"
+                     << " limit of " << limitSize << endl;
+            }
+            opts.client.closeEnumeration(enumerationContext);
+            endOfSequence = true;
+        }
+        else
+        {
+            Uint32 remainder = maxObjToReceive - instances.size();
+            if (limitSize && ((remainder) < maxPullObj))
+            {
+                if (opts.verboseTest)
+                {
+                    cout << "Remainder to request for limit = "
+                         << remainder << endl;
+                }
+                maxPullObj = remainder;
+            }
+            if (opts.pullDelay != 0)
+            {
+                System::sleep(opts.pullDelay);
+            }
+            Array<CIMInstance> cimInstancesPulled;
+            if (withPath)
+            {
+                if (opts.verboseTest)
+                {
+                    cout << _getElapsedTimeFmtd(opts)
+                        << "pullInstancesWithPath. maxObj= "
+                         << maxPullObj << endl;
+                }
+                cimInstancesPulled =
+                    opts.client.pullInstancesWithPath(
+                        enumerationContext,
+                        endOfSequence,
+                        maxPullObj);
+                if (opts.verboseTest)
+                {
+                    cout << _getElapsedTimeFmtd(opts)
+                        << "pullInstancesWithPath returned. "
+                        << cimInstancesPulled.size() << " instances" << endl;
+                }
+            }
+            else
+            {
+                if (opts.verboseTest)
+                {
+                    cout << _getElapsedTimeFmtd(opts)
+                         << "pullInstances with path. maxObj= "
+                         << maxPullObj << endl;
+                }
+                cimInstancesPulled =
+                    opts.client.pullInstances(
+                        enumerationContext,
+                        endOfSequence,
+                        maxPullObj);
+                if (opts.verboseTest)
+                {
+                    cout << _getElapsedTimeFmtd(opts)
+                        << "pullInstances returned. "
+                         << cimInstancesPulled.size() << " instances" << endl;
+                }
+            }
+
+            rtn = !_testRcvTooManyElements(maxPullObj,
+                cimInstancesPulled.size(), opts.verboseTest);
+
+            instances.appendArray(cimInstancesPulled);
+        }
+    }
+    return rtn;
+}
+
+
+/*
+    Common function for the loop to pull instance paths until
+    EndOfSequence reached.
+    @return - returns true unless some error occured. Note executing
+    the close does not constitute error.
+*/
+Boolean _pullInstancePaths(
+    Options& opts,
+    Array<CIMObjectPath>& paths,
+    CIMEnumerationContext& enumerationContext)
+{
+    Boolean endOfSequence = false;
+    Uint32 maxPullObj = opts.maxObjectCount;
+    Uint32 maxObjToReceive = opts.maxObjectsToReceive;
+
+    Boolean rtn = true;
+    Boolean limitSize = (maxObjToReceive == 0)? false: true;
+
+    while (!endOfSequence)
+    {
+        // if we have exceeded the input maxObjectsToReceive
+        // close the connection.
+        if (limitSize && (paths.size() >= maxObjToReceive))
+        {
+            if (opts.verboseTest)
+            {
+                cout << _getElapsedTimeFmtd(opts)
+                    << "pullInstancePaths close. " << endl;
+            }
+            opts.client.closeEnumeration(enumerationContext);
+            endOfSequence = true;
+        }
+        else
+        {
+            Uint32 remainder = maxObjToReceive - paths.size();
+            if (limitSize && ((remainder) < maxPullObj))
+            {
+                maxPullObj = remainder;
+            }
+            // if the delay options set, delay between operations by
+            // defined amount
+            if (opts.pullDelay != 0)
+            {
+                System::sleep(opts.pullDelay);
+            }
+            if (opts.verboseTest)
+            {
+                cout << _getElapsedTimeFmtd(opts) << " sec "
+                     << "pullInstancepaths. maxObj= "
+                     << maxPullObj << endl;
+            }
+            Array<CIMObjectPath> pathsPulled = opts.client.pullInstancePaths(
+                enumerationContext,
+                endOfSequence,
+                maxPullObj);
+
+            if (opts.verboseTest)
+                {
+                    cout << _getElapsedTimeFmtd(opts)
+                        << "pullInstancePaths returned. "
+                         << pathsPulled.size() << " paths" << endl;
+                }
+
+            rtn = !_testRcvTooManyElements(maxPullObj,
+                pathsPulled.size(), opts.verboseTest);
+
+            paths.appendArray(pathsPulled);
+        }
+    }
+    return rtn;
+}
+
+// Create an output string of the common parameters of the pull operations.
+// This just reduces code generated. Used for display of input element
+// if verbose set.
+String _displayPullCommonParam(Options& opts)
+{
+    String rtn = ", maxObjectCount = ";
+    rtn.append(_toString(opts.maxObjectCount));
+    rtn.append(", operationTimeout = ");
+    rtn.append(", maxObjectsToReceive= ");
+    rtn.append(opts.maxObjectsToReceive);
+    rtn.append(", pullDelay = ");
+    rtn.append(opts.pullDelay);
+    return rtn;
+}
+/************************** PullEnumerateInstances  ***************************/
+/*
+    This action function executes the enumerateInstances
+    client operation. Inputs are the parameters for the CIMCLient call
+*/
+int pullEnumerateInstances(Options& opts)
+{
+    // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullEnumerateInstances "
+            << "Namespace = " << opts.nameSpace
+            << ", Class = " << opts.className.getString()
+            << ", deepInheritance = " << boolToString(opts.deepInheritance)
+            << ", localOnly = " << boolToString(opts.localOnly)
+            << ", includeQualifiers = " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin = "
+                << boolToString(opts.includeClassOrigin)
+            << ", PropertyList = " << opts.propertyList.toString()
+            << ", QueryLanguage = " << opts.queryLanguage
+            << ", Query = " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+
+    Array<CIMInstance> instances;
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    // insure that we do not request more than limit on open
+    if (opts.maxObjectsToReceive != 0)
+    {
+        // if ask for more than max we want, reset max count.
+        if (opts.maxObjectCount > opts.maxObjectsToReceive)
+        {
+            opts.maxObjectCount = opts.maxObjectsToReceive;
+        }
+    }
+
+    CIMEnumerationContext enumerationContext;
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " instances " << endl;
+    }
+
+    instances = opts.client.openEnumerateInstances(
+        enumerationContext,
+        endOfSequence,
+        opts.nameSpace,
+        opts.className,
+        opts.deepInheritance,
+        opts.includeClassOrigin,
+        opts.propertyList,
+        opts.queryLanguage,
+        opts.query,
+        opts.pullOperationTimeout,
+        opts.continueOnError,
+        opts.maxObjectCount);
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open rtned "
+            << instances.size()
+            << " instances " << endl;
+    }
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        instances.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancesWithPath(opts, instances, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, ex. too many response objects."));
+            //#T PULL_RESP_ERR
+            //#S Pull Loop returned error, ex. too many response objects.
+        }
+    }
+
+
+    _stopCommandTimer(opts);
+
+    CIMCLIOutput::displayInstances(opts, instances);
+
+    return(CIMCLI_RTN_CODE_OK);
+}
+
+int pullEnumerateInstancePaths(Options& opts)
+{
+    // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullEnumerateInstances "
+            << "Namespace = " << opts.nameSpace
+            << ", Class = " << opts.className.getString()
+            << ", QueryLanguage = " << opts.queryLanguage
+            << ", Query = " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+
+    Array<CIMObjectPath> paths;
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    // insure that we do not request more than limit on open
+    if (opts.maxObjectsToReceive != 0)
+    {
+        // if ask for more than max we want, reset max count.
+        if (opts.maxObjectCount > opts.maxObjectsToReceive)
+        {
+            opts.maxObjectCount = opts.maxObjectsToReceive;
+        }
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " paths " << endl;
+    }
+
+    CIMEnumerationContext enumerationContext;
+    paths = opts.client.openEnumerateInstancePaths( enumerationContext,
+        endOfSequence,
+        opts.nameSpace,
+        opts.className,
+        opts.queryLanguage,
+        opts.query,
+        opts.pullOperationTimeout,
+        opts.continueOnError,
+        opts.maxObjectCount);
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) <<"Open rtned " << paths.size()
+            << " paths " << endl;
+    }
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        paths.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancePaths(opts, paths, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+
+    _stopCommandTimer(opts);
+
+    CIMCLIOutput::displayPaths(opts,paths);
+
+    return(CIMCLI_RTN_CODE_OK);
+}
+
+int pullReferenceInstancePaths(Options& opts)
+{
+        // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullReferenceInstanceNames "
+            << "Namespace= " << opts.nameSpace
+            << ", ObjectPath= " << opts.getTargetObjectNameStr()
+            << ", resultClass= " << opts.resultClass.getString()
+            << ", role= " << opts.role
+            << ", QueryLanguage = " << opts.queryLanguage
+            << ", Query = " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+    // do conditional select of instance if params properly set.
+    CIMObjectPath thisObjectPath(opts.getTargetObjectName());
+    if (!_conditionalSelectInstance(opts, thisObjectPath))
+    {
+        return(CIMCLI_RTN_CODE_OK);
+    }
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " paths " << endl;
+    }
+
+    CIMEnumerationContext enumerationContext;
+    Array<CIMObjectPath> paths =
+        opts.client.openReferenceInstancePaths( enumerationContext,
+                                endOfSequence,
+                                opts.nameSpace,
+                                thisObjectPath,
+                                opts.resultClass,
+                                opts.role,
+                                opts.queryLanguage,
+                                opts.query,
+                                opts.pullOperationTimeout,
+                                opts.continueOnError,
+                                opts.maxObjectCount
+                                );
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) <<"Open rtned " << paths.size()
+            << " paths " << endl;
+    }
+    _testRcvTooManyElements(opts.maxObjectCount,
+        paths.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancePaths(opts, paths, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+
+    _stopCommandTimer(opts);
+
+    String s = "pull referenceNames";
+    opts.className = thisObjectPath.getClassName();
+    CIMCLIOutput::displayPaths(opts, paths, s);
+
+    return(CIMCLI_RTN_CODE_OK);}
+
+/*
+  Initiate a OpenReferenceInstances call and pull the instances.
+*/
+int pullReferenceInstances(Options& opts)
+{
+    // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullReferenceInstances "
+            << "Namespace= " << opts.nameSpace
+            << ", Object= " << opts.getTargetObjectNameStr()
+            << ", resultClass= " << opts.resultClass.getString()
+            << ", role= " << opts.role
+            << ", includeQualifiers= " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= " << boolToString(opts.includeClassOrigin)
+            << ", CIMPropertyList= " << opts.propertyList.toString()
+            << ", QueryLanguage= " << opts.queryLanguage
+            << ", Query= " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+
+    // do conditional select of instance if params properly set.
+    CIMObjectPath thisObjectPath(opts.getTargetObjectName());
+    if (!_conditionalSelectInstance(opts, thisObjectPath))
+        return(0);
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    CIMEnumerationContext enumerationContext;
+
+    Array<CIMInstance> instances;
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " instances " << endl;
+    }
+
+    instances = opts.client.openReferenceInstances(
+        enumerationContext,
+        endOfSequence,
+        opts.nameSpace,
+        thisObjectPath,
+        opts.resultClass,
+        opts.role,
+        opts.includeClassOrigin,
+        opts.propertyList,
+        opts.queryLanguage,
+        opts.query,
+        opts.pullOperationTimeout,
+        opts.continueOnError,
+        opts.maxObjectCount);
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) <<"Open rtned " << instances.size()
+            << " instances " << endl;
+    }
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        instances.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancesWithPath(opts, instances, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+    _stopCommandTimer(opts);
+
+    String s = "pull references";
+    //// KS_TBDCIMCLIOutput::displayInstances(opts,instances,s);
+
+    CIMCLIOutput::displayInstances(opts,instances);
+    return(CIMCLI_RTN_CODE_OK);
+}
+
+
+int pullAssociatorInstancePaths(Options& opts)
+{
+    // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullReferenceInstanceNames "
+            << "Namespace= " << opts.nameSpace
+            << ", ObjectPath= " << opts.getTargetObjectNameStr()
+            << ", assocClass= " << opts.assocClass.getString()
+            << ", resultClass= " << opts.resultClass.getString()
+            << ", role= " << opts.role
+            << ", QueryLanguage = " << opts.queryLanguage
+            << ", Query = " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+    // do conditional select of instance if params properly set.
+    CIMObjectPath thisObjectPath(opts.getTargetObjectName());
+    if (!_conditionalSelectInstance(opts, thisObjectPath))
+        return(0);
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+    String filterQueryLanguage;
+    String filterQuery;
+
+    CIMEnumerationContext enumerationContext;
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " paths " << endl;
+    }
+
+    Array<CIMObjectPath> paths =
+        opts.client.openAssociatorInstancePaths( enumerationContext,
+            endOfSequence,
+            opts.nameSpace,
+            thisObjectPath,
+            opts.assocClass,
+            opts.resultClass,
+            opts.role,
+            opts.resultRole,
+            filterQueryLanguage,
+            filterQuery,
+            opts.pullOperationTimeout,
+            opts.continueOnError,
+            opts.maxObjectCount
+            );
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd (opts) << "Open rtned " << paths.size()
+            << " paths " << endl;
+    }
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        paths.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancePaths(opts, paths, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+
+    _stopCommandTimer(opts);
+
+    String s = "pullInstancePaths";
+    opts.className = thisObjectPath.getClassName();
+    CIMCLIOutput::displayPaths(opts, paths, s);
+
+    return(CIMCLI_RTN_CODE_OK);
+}
+
+int pullAssociatorInstances(Options& opts)
+{
+    // hide the opts defaultfor WQL query language
+    if ((opts.queryLanguage == "WQL")  && (opts.query == ""))
+    {
+        opts.queryLanguage = "";
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullAssoociatorInstances "
+            << "Namespace= " << opts.nameSpace
+            << ", Object= " << opts.getTargetObjectNameStr()
+            << ", assocClass= " << opts.assocClass.getString()
+            << ", resultClass= " << opts.resultClass.getString()
+            << ", role= " << opts.role
+            << ", resultRole= " << opts.resultRole
+            << ", includeQualifiers= " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= " << boolToString(opts.includeClassOrigin)
+            << ", CIMPropertyList= " << opts.propertyList.toString()
+            << ", QueryLanguage = " << opts.queryLanguage
+            << ", Query = " << opts.query
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+
+    // do conditional select of instance if params properly set.
+    CIMObjectPath thisObjectPath(opts.getTargetObjectName());
+
+    if (!_conditionalSelectInstance(opts, thisObjectPath))
+        return(CIMCLI_RTN_CODE_OK);
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    CIMEnumerationContext enumerationContext;
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open maxObj "
+            << opts.maxObjectCount << " instances " << endl;
+    }
+
+    Array<CIMInstance> instances;
+    instances = opts.client.openAssociatorInstances(
+        enumerationContext,
+        endOfSequence,
+        opts.nameSpace,
+        thisObjectPath,
+        opts.assocClass,
+        opts.resultClass,
+        opts.role,
+        opts.resultRole,
+        opts.includeClassOrigin,
+        opts.propertyList,
+        opts.queryLanguage,
+        opts.query,
+        opts.pullOperationTimeout,
+        opts.continueOnError,
+        opts.maxObjectCount);
+
+    if (opts.verboseTest)
+    {
+        cout << _getElapsedTimeFmtd(opts) << "Open rtned " << instances.size()
+            << " instances " << endl;
+    }
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        instances.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        if (!_pullInstancesWithPath(opts, instances, enumerationContext ))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+
+    _stopCommandTimer(opts);
+
+    String s = "Pull Associations";
+    /// KS_TBD CIMCLIOutput::displayInstances(opts,instances,s);
+    CIMCLIOutput::displayInstances(opts,instances);
+    return(CIMCLI_RTN_CODE_OK);
+}
+
+int pullQueryInstances(Options& opts)
+{
+    // Currently we do not allow the query return class in OpenPegasus.
+    Boolean returnQueryResultClass = false;
+
+    if (opts.verboseTest)
+    {
+        cout << "OpenQueryInstances "
+            << "Namespace = " << opts.nameSpace
+            << ", queryLanguage = " << opts.queryLanguage
+            << ", query = " << opts.query
+            << ", returnQueryResultClass = "
+            << boolToString(returnQueryResultClass)
+            << _displayPullCommonParam(opts)
+            << endl;
+    }
+
+    if (opts.verboseTest)
+    {
+        cout << "PullQueryInstances "
+            << "Namespace = " << opts.nameSpace
+            << ", queryLanguage = " << opts.queryLanguage
+            << ", query = " << opts.query
+            << endl;
+    }
+
+    Array<CIMInstance> instances;
+
+    _startCommandTimer(opts);
+
+    Boolean endOfSequence = false;
+
+    // insure that we do not request more than limit on open
+    if (opts.maxObjectsToReceive != 0)
+    {
+        // if ask for more than max we want, reset max count.
+        if (opts.maxObjectCount > opts.maxObjectsToReceive)
+        {
+            opts.maxObjectCount = opts.maxObjectsToReceive;
+        }
+    }
+
+    CIMEnumerationContext enumerationContext;
+    CIMClass queryResultClass;
+
+    instances = opts.client.openQueryInstances(
+        enumerationContext,
+        endOfSequence,
+        opts.nameSpace,
+        opts.queryLanguage,
+        opts.query,
+        queryResultClass,
+        returnQueryResultClass,
+        opts.pullOperationTimeout,
+        opts.continueOnError,
+        opts.maxObjectCount);
+
+    _testRcvTooManyElements(opts.maxObjectCount,
+        instances.size(), opts.verboseTest);
+
+    if (!endOfSequence)
+    {
+        // The false argument indicates that we pull instances only, no path
+        if (!_pullInstancesWithPath(opts, instances, enumerationContext, false))
+        {
+            // some error return from the pull loop.
+            cimcliMsg::errmsg(MessageLoaderParms(
+                "Clients.cimcli.CIMCLIClient.PULL_RESP_ERR",
+                "Pull Loop returned error, for example, too many responses."));
+        }
+    }
+
+
+    _stopCommandTimer(opts);
+
+    // The false indicates that we do not display the path component
+    CIMCLIOutput::displayInstances(opts, instances, false);
+
+    return(CIMCLI_RTN_CODE_OK);
+}
+//KS_PULL_END
 
 /************************** executeQuery  ***************************/
 /*
@@ -1261,10 +2166,12 @@ int getInstance(Options& opts)
         cout << "getInstance "
             << "Namespace = " << opts.nameSpace
             << ", InstanceName/class = " << opts.getTargetObjectNameStr()
-            << ", localOnly = " << _toString(opts.localOnly)
-            << ", includeQualifiers = " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin = " << _toString(opts.includeClassOrigin)
-            << ", PropertyList = " << _toString(opts.propertyList)
+            << ", localOnly = " << boolToString(opts.localOnly)
+            << ", includeQualifiers = "
+                << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin = "
+                << boolToString(opts.includeClassOrigin)
+            << ", PropertyList = " << opts.propertyList.toString()
             << endl;
         _showValueParameters(opts);
     }
@@ -1375,9 +2282,10 @@ int testInstance(Options& opts)
         cout << "testInstance "
             << "Namespace = " << opts.nameSpace
             << ", InstanceName/ClassName = " << opts.getTargetObjectNameStr()
-            << ", includeQualifiers = " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin = " << _toString(opts.includeClassOrigin)
-            << ", PropertyList = " << _toString(opts.propertyList)
+            << ", includeQualifiers = " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin = "
+                << boolToString(opts.includeClassOrigin)
+            << ", PropertyList = " << opts.propertyList.toString()
             << endl;
         _showValueParameters(opts);
     }
@@ -1442,12 +2350,23 @@ int testInstance(Options& opts)
     // the request. The warning is simply a flag for the user.
     if (rtndInstance.getPropertyCount() != opts.propertyList.size())
     {
-        cerr << "Warning: Response returned different property"
-            " set than requested."
-            << "\nRequested = " << _toString(opts.propertyList) << endl
-            << "Returned = " << _toString(_buildPropertyList(rtndInstance))
-            << "\nContinuing and testing against requested property list"
-            << endl;
+        cimcliMsg::errmsg(MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.DIFF_PROP_RTND_ERR",
+            "WARNING: Response returned different property set than requested."
+            "\nRequested = $0"
+            "\nReturned = $1"
+            "\nContinuing and testing against requested property list",
+            opts.propertyList.toString(),
+            _buildPropertyList(rtndInstance).toString() ));
+        //#N substitution {0} is a string with the classname in error
+        //#N @version 2.14
+        //#P 51
+        //#T DIFF_PROP_RTND_ERR
+        //#S Warning: Response returned different property set than requested.
+        //#S \nRequested = {0}
+        //#S \nReturned = {1}
+        //#S \nContinuing and testing against requested property list.
+
         rtndInstance.instanceFilter(opts.includeQualifiers,
             opts.includeClassOrigin,
             opts.propertyList);
@@ -1530,8 +2449,7 @@ int modifyInstance(Options& opts)
         cout << "modifyInstance "
             << "Namespace = " << opts.nameSpace
             << ", InstanceName/ClassName = " << opts.getTargetObjectNameStr()
-            << ", Property List = " <<
-                _toString(opts.propertyList)
+            << ", Property List = " << opts.propertyList.toString()
             << endl;
         _showValueParameters(opts);
     }
@@ -1555,11 +2473,12 @@ int modifyInstance(Options& opts)
             }
             else
             {
-                cerr << "Error: no path for instance set" << endl;
-                cimcliExit(CIMCLI_INPUT_ERR);
+                cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                    "Clients.cimcli.CIMCLIClient.NO_PATH_ERR",
+                    "No path for instance set."));
+                //#T NO_PATH_ERR
+                //#S No path for instance set.
             }
-
-
         }
     }
 
@@ -1610,7 +2529,7 @@ int enumerateClassNames(Options& opts)
         cout << "EnumerateClasseNames "
             << "Namespace= " << opts.nameSpace
             << ", Class= " << opts.className.getString()
-            << ", deepInheritance= " << _toString(opts.deepInheritance)
+            << ", deepInheritance= " << boolToString(opts.deepInheritance)
             << endl;
     }
     Array<CIMName> classNames;
@@ -1643,10 +2562,12 @@ int enumerateClasses(Options& opts)
         cout << "EnumerateClasses "
             << "Namespace= " << opts.nameSpace
             << ", Class= " << opts.className.getString()
-            << ", deepInheritance= " << _toString(opts.deepInheritance)
-            << ", localOnly= " << _toString(opts.localOnly)
-            << ", includeQualifiers= " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin= " << _toString(opts.includeClassOrigin)
+            << ", deepInheritance= " << boolToString(opts.deepInheritance)
+            << ", localOnly= " << boolToString(opts.localOnly)
+            << ", includeQualifiers= "
+                << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= "
+                << boolToString(opts.includeClassOrigin)
             << endl;
     }
 
@@ -1706,11 +2627,11 @@ int getClass(Options& opts)
         cout << "getClass "
             << "Namespace= " << opts.nameSpace
             << ", Class= " << opts.className.getString()
-            << ", deepInheritance= " << _toString(opts.deepInheritance)
-            << ", localOnly= " << _toString(opts.localOnly)
-            << ", includeQualifiers= " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin= " << _toString(opts.includeClassOrigin)
-            << ", PropertyList= " << _toString(opts.propertyList)
+            << ", deepInheritance= " << boolToString(opts.deepInheritance)
+            << ", localOnly= " << boolToString(opts.localOnly)
+            << ", includeQualifiers= " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= " << boolToString(opts.includeClassOrigin)
+            << ", PropertyList= " << opts.propertyList.toString()
             << endl;
     }
 
@@ -2006,9 +2927,9 @@ int references(Options& opts)
             << ", ObjectName = " << opts.getTargetObjectNameStr()
             << ", resultClass= " << opts.resultClass.getString()
             << ", role= " << opts.role
-            << ", includeQualifiers= " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin= " << _toString(opts.includeClassOrigin)
-            << ", CIMPropertyList= " << _toString(opts.propertyList)
+            << ", includeQualifiers= " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= " << boolToString(opts.includeClassOrigin)
+            << ", CIMPropertyList= " << opts.propertyList.toString()
             << endl;
     }
 
@@ -2089,7 +3010,7 @@ int associatorNames(Options& opts)
 
     _stopCommandTimer(opts);
 
-    String s = "associator names";
+    String s = "associatorNames";
     opts.className = thisObjectPath.getClassName();
     CIMCLIOutput::displayPaths(opts, associatorNames, s);
 
@@ -2130,9 +3051,9 @@ int associators(Options& opts)
             << ", resultClass= " << opts.resultClass.getString()
             << ", role= " << opts.role
             << ", resultRole= " << opts.resultRole
-            << ", includeQualifiers= " << _toString(opts.includeQualifiers)
-            << ", includeClassOrigin= " << _toString(opts.includeClassOrigin)
-            << ", propertyList= " << _toString(opts.propertyList)
+            << ", includeQualifiers= " << boolToString(opts.includeQualifiers)
+            << ", includeClassOrigin= " << boolToString(opts.includeClassOrigin)
+            << ", propertyList= " << opts.propertyList.toString()
             << endl;
     }
 
@@ -2315,13 +3236,15 @@ int setObjectManagerStatistics(Options& opts, Boolean newState,
     CIMValue v = p.getValue();
     v.get(stateAfterMod);
 
-    cout << "Updated Status= " << ((stateAfterMod)? "true" : "false") << endl;
+    // It is our intention to deprecate this function so did not
+    // internationalize
+    cout << "Updated Status= " << boolToString(stateAfterMod) << endl;
 
     if (stateAfterMod != newState)
     {
         cerr << "Error: State change error. Expected: "
-            << ((newState)? "true" : "false")
-            << " Rcvd: " << ((stateAfterMod)? "true" : "false") << endl;
+            << boolToString(newState)
+            << " Rcvd: " << boolToString(stateAfterMod) << endl;
     }
 
     return CIMCLI_RTN_CODE_OK;
@@ -2406,17 +3329,10 @@ struct classTreeEntry
              << "  subclassesCnt=" << _subclasses.size() << " "
              << " subclasses=" << _toString(_subclasses)
              << " assocRefs=" << _toString(_assocRefs) << " "
-             << " isAssociation=" << _toString(_isAssociation)
+             << " isAssociation=" << boolToString(_isAssociation)
              << endl;
     }
 };
-
-// Create a Pegasus array type for classTreeEntry
-#include <Pegasus/Common/ArrayIterator.h>
-#define PEGASUS_ARRAY_T classTreeEntry
-# include <Pegasus/Common/ArrayInter.h>
-# include <Pegasus/Common/ArrayImpl.h>
-#undef PEGASUS_ARRAY_T
 
 /*
     Class defining the container for classTreeEntry items.  As classes are
@@ -2447,11 +3363,17 @@ public:
             }
         }
 
-        cimcliMsg::exit(CIMCLI_INTERNAL_ERR,
-            "class %s not found in classTreeArray",
-            (const char *)name.getString().getCString());
+        cimcliMsg::exit(CIMCLI_INTERNAL_ERR, MessageLoaderParms(
+            "Clients.cimcli.CIMCLIClient.CLASS_NAME_NOT_FOUND_ERR",
+            "Class $0 not found in classTreeArray",
+            (const char *)name.getString().getCString()));
+        //#N substitution {0} is a string with the class name in error
+        //#N @version 2.14
+        //#P 52
+        //#T CLASS_NAME_NOT_FOUND_ERR
+        //#S Class {0} not found in classTreeArray
 
-        PEGASUS_UNREACHABLE(return classTreeEntry());
+        PEGASUS_UNREACHABLE(return classTreeEntry();)
     }
 
     // Display a single tree entry
@@ -2638,7 +3560,11 @@ int classTree(Options& opts)
         // Must have a class name for tail of tree if showing superclasses
         if (opts.className.isNull())
         {
-            cimcliMsg::exit(0, "Class input required");
+            cimcliMsg::exit(CIMCLI_INPUT_ERR, MessageLoaderParms(
+                        "Clients.cimcli.CIMCLIClient.NEED_CLASS_NAME_ERR",
+                        "Class name input required"));
+//#T NEED_CLASS_NAME_ERR
+//#S Class name input required
         }
 
         CIMName cn = opts.className;
@@ -2750,14 +3676,6 @@ struct instanceCounter
     }
 };
 
-// Define array of instanceCounter struct
-
-#include <Pegasus/Common/ArrayIterator.h>
-#define PEGASUS_ARRAY_T instanceCounter
-# include <Pegasus/Common/ArrayInter.h>
-# include <Pegasus/Common/ArrayImpl.h>
-#undef PEGASUS_ARRAY_T
-
 // find an instance in array of instanceCounter. Returns true if found
 static bool _findInstance(Array<instanceCounter>& x, String& name, Uint32& pos)
 {
@@ -2862,14 +3780,16 @@ int countInstances(Options& opts)
         // just stopping
         catch(CIMException& e)
         {
-            cerr << "CIMException " << classNames[iClass].getString() << " "
-                 << e.getMessage() << " Code " << e.getCode() << endl;
+            cerr << "CIMException: " << classNames[iClass].getString() << " "
+                 << e.getMessage() << " Code " << e.getCode()
+                 << ". Continuing processing."<< endl;
             continue;
         }
         catch(Exception& e)
         {
             cerr << " Pegasus Exception: " << e.getMessage() << " "
-                 << classNames[iClass].getString() << endl;
+                 << classNames[iClass].getString()
+                 << ". Continuing processing."<< endl;
             continue;
         }
 

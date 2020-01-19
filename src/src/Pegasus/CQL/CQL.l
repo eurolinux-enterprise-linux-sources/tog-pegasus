@@ -38,6 +38,8 @@
 */
 
 %option never-interactive
+%option nounput
+%option noinput
 %{
 extern int CQLInput(char* buffer, int& numRead, int numRequested);
 extern int CQL_error(const char*);
@@ -70,11 +72,6 @@ PEGASUS_NAMESPACE_END
 #else
 #define CQL_DEBUG_TRACE(X)
 #define CQL_DEBUG_TRACE2(X,Y)
-#endif
-
-/* Avoid warn_unused_result warnings in Linux RPM build */
-#ifndef ECHO
-# define ECHO do { size_t ignored = fwrite(yytext, yyleng, 1, yyout); } while(0)
 #endif
 
 int lineno;

@@ -64,12 +64,7 @@ static const char* commonOptions = "    -count, -d, -delay, -p, -l, -u, -o, -x,\
 /*
     This function loads the message from resourcebundle using the key passed
 */
-String loadMessage(const char* key, const char* defMessage)
-{
-    MessageLoaderParms parms(key, defMessage);
-    parms.msg_src_path = MSG_PATH;
-    return MessageLoader::getMessage(parms);
-}
+
 
 void showExamples()
 {
@@ -86,8 +81,7 @@ void showExamples()
         OperationExampleEntry example = operations.getExampleEntry();
         cout << loadMessage(example.msgKey, example.Example) << endl;
 
-
-        OperationTableEntry thisOperation = operations.next();
+        operations.next();
     }
 }
 
@@ -106,8 +100,8 @@ void showOperations(const char* pgmName, Uint32 lineLength)
         OperationTableEntry thisOperation = operations.next();
 
         cout << endl;
-        String opString = stringPrintf(
-            "%-5s %-21s ",
+        String opString;
+        opString.appendPrintf("%-5s %-21s ",
             thisOperation.ShortCut,
             thisOperation.OperationName);
 
@@ -212,12 +206,12 @@ Boolean showOperationUsage(const char* cmd, OptionManager& om,
         if (operations.find(cmd))
         {
             OperationTableEntry thisOperation = operations.get();
-            Uint32 index = operations.getIndex();
 
             OperationExampleEntry example = operations.getExampleEntry();
             // format the shortcut and
             // command string into a single output string.
-            String opString = stringPrintf(
+            String opString;
+            opString.appendPrintf(
                 "%-5s %-21s ",
                 thisOperation.ShortCut,
                 thisOperation.OperationName);
@@ -250,8 +244,8 @@ Boolean showOperationUsage(const char* cmd, OptionManager& om,
                 << endl;
 
             // Output the common Options information
-            String commonOpStr =
-                 stringPrintf("%s", "Common Options are : \n");
+            String commonOpStr;
+            commonOpStr.appendPrintf("%s", "Common Options are : \n");
 
             commonOpStr.append(commonOptions);
 

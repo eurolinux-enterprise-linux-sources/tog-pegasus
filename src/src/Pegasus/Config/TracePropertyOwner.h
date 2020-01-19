@@ -213,18 +213,6 @@ private:
     Boolean isLevelValid(const String& traceLevel) const;
 
     /**
-    Converts a given string representation of a trace buffer size into Uint32.
-    If the string reperesantation is not valid, the returnd bufferSize is 0.
-
-    @param  traceBufferSize   The trace buffer size as string
-    @param  bufferSize        Returns the buffer size as Uint32.
-    @return Boolean           True if specified size is a
-                              valid string representaion of a Uint32.
-    */
-    Boolean toUint32TraceMemoryBufferSize( const String& traceBufferSize,
-                  Uint32& bufferSize ) const;
-
-    /**
     Makes sure the tracer has the trace file set with the current
     value from the config manager and issue a warning, if the
     traceFile cannot be used for tracing.
@@ -246,7 +234,10 @@ private:
     AutoPtr<struct ConfigProperty>      _traceFacility; //PEP315
 
     AutoPtr<struct ConfigProperty>      _traceMemoryBufferKbytes; //PEP316
+    
+    AutoPtr<struct ConfigProperty>      _traceFileSizeKBytes;
 
+    AutoPtr<struct ConfigProperty>      _numberOfTraceFiles;
     /**
     Remember if configproperties are already initialized.
     */

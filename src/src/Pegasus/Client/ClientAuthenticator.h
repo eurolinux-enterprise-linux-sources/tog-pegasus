@@ -37,6 +37,9 @@
 #include <Pegasus/Common/HTTPMessage.h>
 #include <Pegasus/Client/Linkage.h>
 
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+#include <Pegasus/Common/Negotiate.h>
+#endif
 
 PEGASUS_NAMESPACE_BEGIN
 
@@ -47,7 +50,7 @@ class PEGASUS_CLIENT_LINKAGE ClientAuthenticator
 {
 public:
 
-    enum AuthType { NONE, BASIC, DIGEST, LOCAL };
+    enum AuthType { NONE, BASIC, DIGEST, LOCAL, NEGOTIATE };
 
     /** Constuctor. */
     ClientAuthenticator();
@@ -100,6 +103,10 @@ public:
     */
     void setPassword(const String& password);
 
+    /** Set the hostname
+    */
+    void setHost(const String& host);
+
     /** Set the authentication type
     */
     void setAuthType(AuthType type);
@@ -107,6 +114,15 @@ public:
     /** Get the authentication type
     */
     AuthType getAuthType();
+
+    /**
+     * Parse Set-Cookie header from a HTTP response.
+     */
+    void parseCookie(Array<HTTPHeader> headers);
+
+    String getCookie();
+
+    void clearCookie();
 
 private:
 
@@ -118,6 +134,9 @@ private:
         const char* authHeader,
         String& authType,
         String& authRealm);
+
+    /** Parse realm name out of realm="<realm>" */
+    String _parseBasicRealm(const String &challenge);
 
     String _getSubStringUptoMarker(
         const char** line,
@@ -134,6 +153,12 @@ private:
     String _localAuthFileContent;
 
     AuthType _authType;
+
+    String _cookie;
+
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    AutoPtr<NegotiateClientSession> _session;
+#endif
 };
 
 PEGASUS_NAMESPACE_END

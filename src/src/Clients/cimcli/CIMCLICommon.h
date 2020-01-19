@@ -33,17 +33,20 @@
 #define _CLI_COMMON_H
 
 #include <Pegasus/Common/Config.h>
-#include <Pegasus/Common/PegasusAssert.h>
 #include <Clients/cimcli/Linkage.h>
 #include <Pegasus/Common/CIMPropertyList.h>
-#include <Pegasus/Common/Formatter.h>
-
-#include <Pegasus/Common/CIMInstance.h>
 #include <Pegasus/Common/MessageLoader.h>
 #include <cstdarg>
 PEGASUS_NAMESPACE_BEGIN
 
+
+// Diagnostic tool maintained just to trace development issues.
+// issues a single line when set into source code.
+#define TRACELINE cout << __FILE__ << ":" << __LINE__ << endl;
+
 // Common functions used in cimcli
+
+String loadMessage(const char* key, const char* msg);
 
 /**
  * cliExit - Function to actually execute cimcli exits
@@ -202,6 +205,71 @@ public:
         const Formatter::Arg& arg0,
         const Formatter::Arg& arg1,
         const Formatter::Arg& arg2);
+
+    /** Internationalized form of message output. The following
+     *  methods output messages but do not
+     *  terminate cimcli
+     */
+     /**
+     * Generate an Internationlaized output message to cerr
+     *
+     * @param msgParms MessageLoaderParms definition with key to
+     * internationalized message and default message consisting of
+     * format string and variable number of parameters.
+     */
+    static void errmsg(
+        const MessageLoaderParms& msgParms);
+
+    /** Non internationalized message output with a single String
+     *  parameter
+     * @param formatString String without parameters that is
+     *                     displayed
+     */
+    static void errmsg(
+        const String& formatString);
+
+    /** One-argument form of message that generates a message
+     *  from a formatString and a single argument.
+     *  @param formatString - formatting string as defined in the
+     *  file src/Pegasus/Common/Formatter.h
+     *  @param arg0  Input argument for formatterString.See
+     *               Formatter.h for more information on possible
+     *               arguments.
+    */
+    static void errmsg(
+        const String& formatString,
+        const Formatter::Arg& arg0);
+
+    /** Two-argument form of message that generates a message
+     *  from a formatString and a single argument.
+     *  @param formatString - formatting string as defined in the
+     *  file src/Pegasus/Common/Formatter.h
+     *  @param arg0 - First input argument (replaces $0 in
+     *              formatString)
+     *  @param arg1 - Second input argument (replaces $1 in
+     *              formatString)
+    */
+        static void errmsg(
+        const String& formatString,
+        const Formatter::Arg& arg0,
+        const Formatter::Arg& arg1);
+
+    /** Three-argument form of message that generates a message
+     *  from a formatString and a single argument.
+     *  @param formatString - formatting string as defined in the
+     *  file src/Pegasus/Common/Formatter.h
+     *  @param arg0 - First input argument (replaces $0 in
+     *              formatString)
+     *  @param arg1 - Second input argument (replaces $1 in
+     *              formatString)
+     *  @param arg3 - Thirs input argument (replaces $2 in
+     *              formatString)
+    */
+    static void errmsg(
+        const String& formatString,
+        const Formatter::Arg& arg0,
+        const Formatter::Arg& arg1,
+        const Formatter::Arg& arg2);
 private:
 
 };
@@ -230,12 +298,6 @@ String PEGASUS_CLI_LINKAGE _toString(Boolean x);
  */
 void  PEGASUS_CLI_LINKAGE _print(Boolean x);
 
-/**
- * Convert CIMPropertyList to a String in the form name[,name]
- * @param pl  property list
- * @return String PEGASUS_CLI_LINKAGE
- */
-String  PEGASUS_CLI_LINKAGE _toString(const CIMPropertyList& pl);
 /**
  * Convert a PropertyList object to displayable form
  * @param pl propertyList to print
@@ -323,25 +385,23 @@ Real64 PEGASUS_CLI_LINKAGE strToReal(const char * str, CIMType type);
  */
 void PEGASUS_CLI_LINKAGE cimcliExit(Uint32 exitCode);
 
+/**
+    Same cimcliExit except returns to the user with the return
+    code to be used.  This was defined to allow the main to to a
+    return on exit rather than exit which helps clean up on
+    cimcli exit. (See bug 9758)
+
+    @param exitCode
+
+    @return Uint32 code to be used for the exit.
+ */
+Uint32 PEGASUS_CLI_LINKAGE cimcliExitRtn(Uint32 exitCode);
 /** Set the expected exit code to some value.  This value will
  *  be tested by cimcliExit to determine if expected exit
  *  taken and put out message if not.
  *  @param expectedExitCode value to set.
  */
 void setExpectedExitCode(Uint32 expectedExitCode);
-
-/**
- * Return a Pegasus String formatted string in allocated memory
- * based on the input format definition string and the variable
- * number of arguments that follow the format string.
- *
- * @param format containing the C++ printf format definition.
- * @param ... variable number of input parameters dependent on
- *        the format definition input parameter
- * @return String with formatted string.
- */
-
-String PEGASUS_CLI_LINKAGE stringPrintf(const char* format, ...);
 
 /**
    Remap a long string into a multi-line string that can be

@@ -50,6 +50,7 @@
 
 #include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/PegasusVersion.h>
+#include <Pegasus/Common/Pegasus_inl.h>
 
 #include <cctype>
 #include <iostream>
@@ -286,7 +287,7 @@ void InteropProvider::modifyInstance(
         thisProvider,
         (const char *) (instanceReference.toString().getCString()),
         boolToString(includeQualifiers),
-        (const char *) (propertyListToString(propertyList).getCString())));
+        (const char *)propertyList.toString().getCString()));
 
     // test for legal namespace for this provider. Exception if not
     //namespaceSupported(instanceReference);

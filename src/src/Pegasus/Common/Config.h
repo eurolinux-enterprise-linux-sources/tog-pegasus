@@ -96,18 +96,19 @@
 # include <Pegasus/Common/Platform_VMS_IA64_DECCXX.h>
 #elif defined (PEGASUS_PLATFORM_LINUX_XSCALE_GNU)
 # include <Pegasus/Common/Platform_LINUX_XSCALE_GNU.h>
+#elif defined (PEGASUS_PLATFORM_LINUX_AARCH64_GNU)
+# include <Pegasus/Common/Platform_LINUX_AARCH64_GNU.h>
 #elif defined (PEGASUS_PLATFORM_LINUX_X86_64_CLANG)
 # include <Pegasus/Common/Platform_LINUX_X86_64_CLANG.h>
 #elif defined (PEGASUS_PLATFORM_LINUX_IX86_CLANG)
 # include <Pegasus/Common/Platform_LINUX_IX86_CLANG.h>
+#elif defined (PEGASUS_PLATFORM_LINUX_SH4_GNU)
+# include <Pegasus/Common/Platform_LINUX_SH4_GNU.h>
 #else
 # error "<Pegasus/Common/Config.h>: Unsupported Platform"
 #endif
 
-
-
 /*
-//<<< Sun Apr  6 19:28:00 2003 mdd >>>
 //
 // COMPILER Checks
 //
@@ -278,10 +279,35 @@ typedef PEGASUS_SINT64 Sint64;
 PEGASUS_NAMESPACE_END
 #endif
 
+
+/*
+ *PEGASUS_UNREACHABLE implies unreachable code in pegasus.
+ *Should be used in places where the control should not reached.
+ *Please use in this way
+ * PEGASUS_UNREACHABLE( expression;)
+ *not in this way
+ * PEGASUS_UNREACHABLE(expression);
+ *
+ *Though both are same, Former will prevent ;;(double semicolon)
+ *
+ */
+
 #ifdef PEGASUS_SUPPRESS_UNREACHABLE_STATEMENTS
 # define PEGASUS_UNREACHABLE(CODE)
 #else
-# define PEGASUS_UNREACHABLE(CODE) CODE
+# if defined(__clang__ )
+#  define PEGASUS_UNREACHABLE(CODE) __builtin_unreachable();
+# elif defined(GCC_VERSION)
+#  if GCC_VERSION >= 40500 //Unreachable supported only for gcc 4.5 and above
+#   define PEGASUS_UNREACHABLE(CODE) __builtin_unreachable();
+#  else
+#   define PEGASUS_UNREACHABLE(CODE) CODE
+#  endif
+# elif defined(_MSC_VER) //PEGASUS_OS_TYPE_WINDOWS
+#  define PEGASUS_UNREACHABLE(CODE) __assume(0);
+# else
+#  define PEGASUS_UNREACHABLE(CODE) CODE
+# endif
 #endif
 
 /*
@@ -309,7 +335,7 @@ PEGASUS_NAMESPACE_END
 # define PEGASUS_FORMAT(A1, A2) /* not implemented */
 #endif
 
-/* 
+/*
 ** PEGASUS_INITIAL_THREADSTACK_SIZE
 **
 ** This macro is used to restrict the maximal stack size used per thread.
@@ -325,7 +351,7 @@ PEGASUS_NAMESPACE_END
 
 /*
 ** PEGASUS_PG_OBJECTMANAGER_ELEMENTNAME
-** 
+**
 ** This macro is used to set ElementName property on the PG_ObjectManager
 ** instance. This value is also used in SLP announcment for service-hi-name.
 **
@@ -337,7 +363,7 @@ PEGASUS_NAMESPACE_END
 #  define PEGASUS_PG_OBJECTMANAGER_ELEMENTNAME PEGASUS_FLAVOR"-pegasus"
 # else
 #  define PEGASUS_PG_OBJECTMANAGER_ELEMENTNAME "Pegasus"
-# endif 
+# endif
 #endif
 
 /*

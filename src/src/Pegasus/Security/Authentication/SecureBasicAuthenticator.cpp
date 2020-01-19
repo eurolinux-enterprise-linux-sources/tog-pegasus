@@ -85,7 +85,9 @@ SecureBasicAuthenticator::SecureBasicAuthenticator()
     _realm.append(Char16('"'));
 
     // Get a user manager instance handler
+#ifndef PEGASUS_PAM_AUTHENTICATION
     _userManager = UserManager::getInstance();
+#endif
 
 #ifdef PEGASUS_OS_ZOS
     ConfigManager* configManager = ConfigManager::getInstance();
@@ -143,9 +145,10 @@ SecureBasicAuthenticator::~SecureBasicAuthenticator()
     PEG_METHOD_EXIT();
 }
 
-Boolean SecureBasicAuthenticator::authenticate(
+AuthenticationStatus SecureBasicAuthenticator::authenticate(
     const String & userName,
-    const String & password)
+    const String & password,
+    AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "SecureBasicAuthenticator::authenticate()");
@@ -225,7 +228,7 @@ Boolean SecureBasicAuthenticator::authenticate(
     if (!System::isSystemUser(userName.getCString()))
     {
         PEG_METHOD_EXIT();
-        return (authenticated);
+        return AuthenticationStatus(authenticated);
     }
 
     try
@@ -243,14 +246,16 @@ Boolean SecureBasicAuthenticator::authenticate(
         }
         else
         {
+#ifndef PEGASUS_PAM_AUTHENTICATION
             if (_userManager->verifyCIMUserPassword(userName, password))
                 authenticated = true;
+#endif
         }
     }
     catch(InvalidUser &)
     {
         PEG_METHOD_EXIT();
-        return (authenticated);
+        return AuthenticationStatus(authenticated);
     }
     catch(Exception & e)
     {
@@ -262,10 +267,12 @@ Boolean SecureBasicAuthenticator::authenticate(
 
     PEG_METHOD_EXIT();
 
-    return (authenticated);
+    return AuthenticationStatus(authenticated);
 }
 
-Boolean SecureBasicAuthenticator::validateUser(const String& userName)
+AuthenticationStatus SecureBasicAuthenticator::validateUser(
+    const String& userName,
+    AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "SecureBasicAuthenticator::validateUser()");
@@ -282,15 +289,17 @@ Boolean SecureBasicAuthenticator::validateUser(const String& userName)
             if (Executor::validateUser(userName.getCString()) != 0)
                 authenticated = true;
         }
+#ifndef PEGASUS_PAM_AUTHENTICATION
         else if (_userManager->verifyCIMUser(userName))
         {
             authenticated = true;
         }
 #endif
+#endif
     }
 
     PEG_METHOD_EXIT();
-    return (authenticated);
+    return AuthenticationStatus(authenticated);
 }
 
 //
@@ -308,8 +317,7 @@ String SecureBasicAuthenticator::getAuthResponseHeader()
     responseHeader.append(_realm);
 
     PEG_METHOD_EXIT();
-
-    return (responseHeader);
+    return responseHeader;
 }
 
 #ifdef PEGASUS_PLATFORM_ZOS_ZSERIES_IBM
@@ -336,7 +344,8 @@ Boolean SecureBasicAuthenticator::set_ZOS_ApplicationID( void )
             " BPXYTHLI control block not found.");
 
         applIDset = false;
-    } else
+    }
+    else
     {
         // The size of applId: BPXYTHLI.THLIAPPLIDLEN
         char* thliApplIDLen = (char *)(thli + 0x052);
@@ -350,7 +359,7 @@ Boolean SecureBasicAuthenticator::set_ZOS_ApplicationID( void )
         applIDset = true;
     }
 
-    return(applIDset);
+    return applIDset;
 }
 #endif // end __TARGET_LIB__
 #endif // end PEGASUS_PLATFORM_ZOS_ZSERIES_IBM

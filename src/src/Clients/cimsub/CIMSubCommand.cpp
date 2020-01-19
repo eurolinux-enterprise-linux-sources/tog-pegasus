@@ -370,7 +370,6 @@ const Uint32 _HANDLER_LIST_NAME_COLUMN = 0;
 const Uint32 _HANDLER_LIST_DESTINATION_COLUMN = 1;
 const Uint32 _FILTER_LIST_NAME_COLUMN = 0;
 const Uint32 _FILTER_LIST_QUERY_COLUMN = 1;
-const Uint32 _FILTER_LIST_QUERYLANGUAGE_COLUMN = 2;
 const Uint32 _SUBSCRIPTION_LIST_NS_COLUMN = 0;
 const Uint32 _SUBSCRIPTION_LIST_FILTER_COLUMN = 1;
 const Uint32 _SUBSCRIPTION_LIST_HANDLER_COLUMN = 2;
@@ -1921,7 +1920,7 @@ Uint32 CIMSubCommand::execute(
                 }
                 else
                 {
-                    PEGASUS_ASSERT(0);
+                    PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                 }
             }
             break;
@@ -2014,7 +2013,7 @@ Uint32 CIMSubCommand::execute(
           break;
         }
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             break;
         }
     }
@@ -2710,13 +2709,17 @@ Uint32 CIMSubCommand::_createSnmpMapperHandler(
     CIMInstance handlerInstance(creationClass);
     handlerInstance.addProperty(CIMProperty(CIMName("Name"), handlerName));
 
-    if (HostAddress::isValidIPV4Address(targetHost))
     {
-        targetHostFormat = 3; //Ipv4
-    }
-    else if(HostAddress::isValidIPV6Address(targetHost))
-    {
-        targetHostFormat = 4; //Ipv6
+        HostAddress tgtHost;
+        tgtHost.setHostAddress(targetHost);
+        if (tgtHost.getAddressType() == HostAddress::AT_IPV4)
+        {
+              targetHostFormat = 3; //Ipv4
+        }
+        else if(tgtHost.getAddressType() == HostAddress::AT_IPV6)
+        {
+            targetHostFormat = 4; //Ipv6
+        }
     }
     handlerInstance.addProperty(CIMProperty(
         PEGASUS_PROPERTYNAME_LSTNRDST_TARGETHOST,

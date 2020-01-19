@@ -2,13 +2,13 @@
 # do "rpmbuild --define 'PEGASUS_BUILD_TEST_RPM 1'" to build test RPM.
 
 %global srcname pegasus
-%global major_ver 2.12
+%global major_ver 2.14
 %global pegasus_gid 65
 %global pegasus_uid 66
 
 Name:           tog-pegasus
 Version:        %{major_ver}.1
-Release:        16%{?dist}
+Release:        3%{?dist}
 Epoch:          2
 Summary:        OpenPegasus WBEM Services for Linux
 
@@ -18,8 +18,6 @@ URL:            http://www.openpegasus.org
 Source0:        https://collaboration.opengroup.org/pegasus/documents/27211/pegasus-%{version}.tar.gz
 #  1: Description of security enhacements
 Source1:        README.RedHat.Security
-#  2: Script for setting SSL certificates - used in init script when cimserver is started for the first time
-Source2:        genOpenPegasusSSLCerts
 #  3: Description of SSL settings
 Source3:        README.RedHat.SSL
 #  4: /etc/tmpfiles.d configuration file
@@ -33,12 +31,12 @@ Source7:        cimprovagt-wrapper.sh
 #  8: Example wrapper confining Operating System Provider from sblim-cmpi-base package
 Source8:        cmpiOSBase_OperatingSystemProvider-cimprovagt.example
 #  9: DMTF CIM schema
-Source9:        cim_schema_2.33.0Experimental-MOFs.zip
+Source9:        cim_schema_2.38.0Experimental-MOFs.zip
 # 10: Fedora/RHEL script for adding self-signed certificates to the local CA
 #     trust store
 Source10:       generate-certs
-# 11: Add a systemd snippet to create the self-signed certificates
-Source11:       genssl.conf
+# 11: Configuration file for snmp tests in -test rpm
+Source11:       snmptrapd.conf
 
 #  1: http://cvs.rdg.opengroup.org/bugzilla/show_bug.cgi?id=5011
 #     Removing insecure -rpath
@@ -59,8 +57,8 @@ Patch5:         pegasus-2.9.0-local-or-remote-auth.patch
 Patch6:         pegasus-2.5.1-pam-wbem.patch
 #  9: Adds cimuser binary to admin commands
 Patch9:         pegasus-2.6.0-cimuser.patch
-# 12: Removes snmp tests, which we don't want to perform
-Patch12:        pegasus-2.7.0-no_snmp_tests.patch
+# 12: Adds snmp tests to the -test rpm, configures snmptrapd
+Patch12:        pegasus-2.7.0-snmp-tests.patch
 # 13: Changes to make package compile on sparc
 Patch13:        pegasus-2.9.0-sparc.patch
 # 16: Fixes "getpagesize" build error
@@ -69,38 +67,25 @@ Patch16:        pegasus-2.9.1-getpagesize.patch
 Patch19:        pegasus-2.10.0-dont-strip.patch
 # 20: use posix locks on sparc arches
 Patch20:        pegasus-2.10.0-sparc-posix-lock.patch
-# 21: temporarily disable privilege separation, the package doesn't work with it, it's
-#     necessary to prepare it first
-Patch21:        pegasus-2.11.1-disable-privilege-separation.patch
 # 22: Fix CMPI enumGetNext function to change CMPI Data state from default CMPI_nullValue
 #     to CMPI_goodValue when it finds and returns next instance correctly
 Patch22:        pegasus-2.12.0-null_value.patch
-# 23: Enables Interop Provider - necessary to e. g. register CMPI providers
-Patch23:        pegasus-2.12.0-enable_interop_provider.patch
 # 24: bz#883030, getPropertyAt() returns Null instead of empty array
 Patch24:        pegasus-2.12.0-empty_arrays.patch
 # 25: allow experimental schema registration with cimmofl during build
 Patch25:        pegasus-2.12.0-cimmofl-allow-experimental.patch
 # 26: use external schema and add missing includes there
 Patch26:        pegasus-2.12.0-schema-version-and-includes.patch
-# 27: patch by D. Marlin, already upstream
-Patch27:        pegasus-2.12.1-atomic-operations-on-arm.patch
-# 28: patch by J. Safranek, bz#958273, upstream bug:
-#     http://bugzilla.openpegasus.org/show_bug.cgi?id=9669
-Patch28:        pegasus-2.12.1-python-reinit-workaround.patch
-# 29: change root/PG_InterOp to root/interop
-Patch29:        pegasus-2.12.1-interop.patch
-# 30: PG_ComputerSystem having CreationClassName="CIM_ComputerSystem"
-# https://bugzilla.redhat.com/show_bug.cgi?id=1022629
-Patch30:        pegasus-2.13.0-PG_ComputerSystem.CreationClassName.patch
-# 31: Add Aarch64 support, http://bugzilla.openpegasus.org/show_bug.cgi?id=9663
-Patch31:        pegasus-2.12.1-aarch64.patch
 # 32: bz#1049313, allow unprivileged users to subscribe to indications by default
-Patch32:        pegasus-2.13.0-enable-subscriptions-for-nonprivileged-users.patch
-# 33: bz#1038013, fixes wrong EmbeddedInstances from CIMOM callback
-Patch33:        pegasus-2.12.1-wrong-embedded-instances-from-cimom-callback.patch
-# 34: bz#1041555, generates SSL certificates with x509v3 extensions
-Patch34:        pegasus-2.13.0-SSLGeneration.patch
+Patch29:        pegasus-2.13.0-enable-subscriptions-for-nonprivileged-users.patch
+# 34: fixes various build problemss
+Patch34:        pegasus-2.14.1-build-fixes.patch
+# 36: fixes sending of SNMPv3 traps in cimserver
+Patch36:        pegasus-2.14.1-snmpv3-trap.patch
+# 37: fixes setupSDK in -devel
+Patch37:        pegasus-2.14.1-fix-setup-sdk.patch
+# 38: modify sslBackwardCompatibility to disable only SSLv3 (leaves TLSv1.0 and TLSv1.1 enabled)
+Patch38:        pegasus-2.14.1-ssl-backward-compatibility-modification.patch
 
 
 BuildRequires:  procps, libstdc++, pam-devel
@@ -108,9 +93,9 @@ BuildRequires:  openssl, openssl-devel
 BuildRequires:  net-snmp-devel, openslp-devel
 BuildRequires:  systemd-units
 Requires:       net-snmp-libs
+Requires:       %{name}-libs = %{epoch}:%{version}-%{release}
 Requires:       openssl
 Requires:       ca-certificates
-Requires:       %{name}-libs = %{epoch}:%{version}-%{release}
 Provides:       cim-server = 1
 Requires(post): /sbin/ldconfig
 
@@ -166,6 +151,9 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 %ifarch ppc64
 %global PEGASUS_HARDWARE_PLATFORM LINUX_PPC64_GNU
 %endif
+%ifarch ppc64le
+%global PEGASUS_HARDWARE_PLATFORM LINUX_PPC64_GNU
+%endif
 %ifarch s390
 %global PEGASUS_HARDWARE_PLATFORM LINUX_ZSERIES_GNU
 %endif
@@ -219,38 +207,32 @@ The OpenPegasus WBEM tests for the OpenPegasus %{version} Linux rpm.
 %setup -q -n %{srcname}
 # convert DMTF schema for Pegasus
 export PEGASUS_ROOT=%PEGASUS_RPM_ROOT
-yes | mak/CreateDmtfSchema 233 %{SOURCE9} cim_schema_2.33.0
+yes | mak/CreateDmtfSchema 238 %{SOURCE9} cim_schema_2.38.0
 %patch1 -p1 -b .no-rpath
 %patch2 -p1 -b .PIE
 %patch3 -p1 -b .redhat-config
 %patch4 -p1 -b .cmpi-provider-lib
 %patch6 -p1 -b .pam-wbem
 %patch9 -p1 -b .cimuser
-%patch12 -p1 -b .no_snmp_tests
+%patch12 -p1 -b .snmp-tests
 %patch5 -p1 -b .local-or-remote-auth
 %patch13 -p1 -b .sparc
 %patch16 -p1 -b .getpagesize
 %patch19 -p1 -b .dont-strip
 %patch20 -p1 -b .sparc-locks
-%patch21 -p1 -b .disable-privilege-separation
 %patch22 -p1 -b .null_value
-%patch23 -p1 -b .enable_interop_provider
 %patch24 -p1 -b .empty_arrays
 %patch25 -p1 -b .cimmofl-allow-experimental
 %patch26 -p1 -b .schema-version-and-includes
-%patch27 -p0 -b .atomic-operations-on-arm
-%patch28 -p1 -b .python-reinit
-%patch29 -p1 -b .interop
-%patch30 -p0 -b .PG_ComputerSystem.CreationClassName
-%patch31 -p1 -b .aarch64
-%patch32 -p1 -b .enable-subscriptions-for-nonprivileged-users
-%patch33 -p1 -b .wrong-embedded-instances-from-cimom-callback
-%patch34 -p1 -b .genssl
+%patch29 -p1 -b .enable-subscriptions-for-nonprivileged-users
+%patch34 -p1 -b .build-fixes
+%patch36 -p1 -b .snmpv3-trap
+%patch37 -p1 -b .fix-setup-sdk
+%patch38 -p1 -b .ssl-backward-compatibility-modification
 
 
 %build
 cp -fp %SOURCE1 doc
-cp -fp %SOURCE2 rpm
 cp -fp %SOURCE3 doc
 cp -fp %SOURCE6 rpm
 cp -fp %SOURCE8 doc
@@ -300,9 +282,8 @@ make -f $PEGASUS_ROOT/Makefile.Release stage \
     PEGASUS_STAGING_DIR=$PEGASUS_STAGING_DIR
 %endif
 
-%if %{?fedora}0 > 140 || %{?rhel}0 > 60
-    install -p -D -m 644 %{SOURCE4} $RPM_BUILD_ROOT/%{_sysconfdir}/tmpfiles.d/tog-pegasus.conf
-%endif
+mkdir -p $RPM_BUILD_ROOT/%{_tmpfilesdir}
+install -p -D -m 644 %{SOURCE4} $RPM_BUILD_ROOT/%{_tmpfilesdir}/tog-pegasus.conf
 
 # Install script to generate SSL certificates at startup
 mkdir -p $RPM_BUILD_ROOT/usr/share/Pegasus/scripts
@@ -320,20 +301,35 @@ rm -rf $RPM_BUILD_ROOT/usr/share/doc/%{name}-%{major_ver}
 # create symlink for libcmpiCppImpl
 pushd $RPM_BUILD_ROOT/usr/%{_lib}
 ln -s libcmpiCppImpl.so.1 libcmpiCppImpl.so
+# and libpeglistener
+ln -s libpeglistener.so.1 libpeglistener.so
 popd
 mkdir -p $RPM_BUILD_ROOT/%{_libexecdir}/pegasus
 mv $RPM_BUILD_ROOT/%{_sbindir}/cimprovagt $RPM_BUILD_ROOT/%{_libexecdir}/pegasus
 install -p -m 0755 %{SOURCE7} $RPM_BUILD_ROOT/%{_sbindir}/cimprovagt
+# install Platform_LINUX_XSCALE_GNU.h because of lmiwbem on arm
+install -m 644 src/Pegasus/Common/Platform_LINUX_XSCALE_GNU.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Common
+# install Linkage.h and CIMListener.h because of lmiwbem (CIMListener class)
+mkdir -p $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
+install -m 644 src/Pegasus/Listener/Linkage.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
+install -m 644 src/Pegasus/Listener/CIMListener.h $RPM_BUILD_ROOT/%{_includedir}/Pegasus/Listener
 
-# Install systemd drop directory for generating SSL certificates
-mkdir -p $RPM_BUILD_ROOT/%{_unitdir}/tog-pegasus.service.d/
-install -p -m 0644 %{SOURCE11} $RPM_BUILD_ROOT/%{_unitdir}/tog-pegasus.service.d/
+# Install snptrapd.conf used for net-snmp tests
+%if %{PEGASUS_BUILD_TEST_RPM}
+install -p %{SOURCE11} $RPM_BUILD_ROOT/usr/share/Pegasus/test/snmptrapd.conf
+%endif
+
+# Install missing mof file for makeSDK
+install -p Schemas/CIM238/DMTF/Core/CIM_AbstractComponent.mof $RPM_BUILD_ROOT/usr/share/Pegasus/samples/Providers/Load/CIM238/DMTF/Core/
 
 %check
 # run unit tests
 export LD_LIBRARY_PATH=$RPM_BUILD_ROOT/usr/%{_lib}
 cd $RPM_BUILD_ROOT/usr/share/Pegasus/test
 make prestarttests
+# remove files created during the test
+rm $RPM_BUILD_ROOT/usr/share/Pegasus/test/log.trace.0
+rm $RPM_BUILD_ROOT/usr/share/Pegasus/test/testtracer4.trace.0
 
 
 %files
@@ -350,16 +346,12 @@ make prestarttests
 %dir /var/lib/Pegasus/log
 %defattr(0640, root, pegasus, 0750)
 %dir /etc/Pegasus
-%if %{?fedora}0 > 140 || %{?rhel}0 > 60
-    %config(noreplace) %{_sysconfdir}/tmpfiles.d/tog-pegasus.conf
-%endif
+%{_tmpfilesdir}/tog-pegasus.conf
 %ghost /var/run/tog-pegasus
 %ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver.pid
 %ghost %attr(0640, root, pegasus) /var/run/tog-pegasus/cimserver_start.lock
 %ghost %attr(1640,root,pegasus) /var/run/tog-pegasus/cimxml.socket
-%{_unitdir}/tog-pegasus.service
-%dir %{_unitdir}/tog-pegasus.service.d/
-%config(noreplace) %{_unitdir}/tog-pegasus.service.d/genssl.conf
+%attr(0644, root, pegasus) %{_unitdir}/tog-pegasus.service
 %defattr(0640, root, pegasus, 0750)
 %ghost %attr(0640, root, pegasus) %config(noreplace) /etc/Pegasus/cimserver_current.conf
 %ghost %config(noreplace) /etc/Pegasus/cimserver_planned.conf
@@ -400,12 +392,14 @@ make prestarttests
 %{_libdir}/*
 %exclude /usr/lib/debug
 %exclude /usr/lib/systemd
+%exclude %{_tmpfilesdir}
 
 %if %{PEGASUS_BUILD_TEST_RPM}
 %files test
 %defattr(0644,root,pegasus,0755)
 %dir /usr/share/Pegasus/test
 /usr/share/Pegasus/test/Makefile
+%attr(0600, root, root) /usr/share/Pegasus/test/snmptrapd.conf
 /usr/share/Pegasus/test/mak
 %dir /usr/share/Pegasus/test/tmp
 %ghost /usr/share/Pegasus/test/tmp/procIdFile
@@ -518,6 +512,34 @@ fi
 
 
 %changelog
+* Tue Sep 22 2015 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-3
+- Modify sslBackwardCompatibility=false to disable only SSLv3
+  Resolves: #1264951
+
+* Thu Jun 18 2015 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-2
+- Remove files created in %%check
+  Resolves: #1232341
+- Fix setupSDK in -devel
+  Resolves: #1127399
+- Add snmp tests to the -test rpm and enable them, configure snmptrapd
+  in test setup phase
+  Related: #1218954
+
+* Thu Jun 11 2015 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.14.1-1
+- Fix packaging of tmpfiles
+  Resolves: #1180993
+- Add install Platform_LINUX_XSCALE_GNU.h, Linkage.h and CIMListener.h to -devel
+  because of lmiwbem (CIMListener class), add symlink to libpeglistener.so.1
+  Resolves: #1120701
+- Update to upstream version 2.14.1
+  Resolves: #1097187, #1039050, #1007386
+- Fix sending of SNMPv3 traps
+  Resolves: #1218954
+
+* Mon Aug 11 2014 Vitezslav Crhonek <vcrhonek@redhat.com> - 2:2.12.1-17
+- Port to ppc64le architecture (patch by Michel Normand)
+  Resolves: #1125753
+
 * Fri Mar 07 2014 Tomas Smetana <tsmetana@redhat.com> - 2:2.12.1-16
 - Wait for the slpd.service in the systemd unit file
   Resolves: #1072936

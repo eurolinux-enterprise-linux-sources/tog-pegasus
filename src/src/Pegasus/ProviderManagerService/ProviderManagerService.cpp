@@ -170,7 +170,7 @@ void ProviderManagerService::handleEnqueue(void)
 
 void ProviderManagerService::_handleIndicationDeliveryResponse(Message *message)
 {
-    CIMProcessIndicationResponseMessage *response = 
+    CIMProcessIndicationResponseMessage *response =
         (CIMProcessIndicationResponseMessage*)message;
     if (response->oopAgentName.size())
     {
@@ -423,8 +423,8 @@ void ProviderManagerService::handleCimRequest(
             // ATTN: Use CIMEnableModuleResponseMessage operationalStatus?
             CIMEnableModuleResponseMessage * emResp =
                 dynamic_cast<CIMEnableModuleResponseMessage*>(response.get());
-            // If the provider is not loaded then update the provider status in 
-            // this thread or else the response thread will call 
+            // If the provider is not loaded then update the provider status in
+            // this thread or else the response thread will call
             // asyncResponseCallback  which will update the provider status.
             if(!emResp->isAsyncResponsePending)
             {
@@ -504,16 +504,17 @@ void ProviderManagerService::handleCimRequest(
         response.reset(cimResponse);
     }
 
-    // all responses will be handled by the asyncResponseCallback 
-    // Certain requests like disable and enable module will be processed 
+    // all responses will be handled by the asyncResponseCallback
+    // Certain requests like disable and enable module will be processed
     // in this thread if the module is not loaded yet.
     CIMResponseMessage *cimResponse = dynamic_cast<CIMResponseMessage*>(
         response.get());
 
     if(!cimResponse->isAsyncResponsePending)
     {
-        AsyncLegacyOperationResult * async_result =
-            new AsyncLegacyOperationResult(
+        // constructor of object is putting itself into a linked list
+        // DO NOT remove the new operator
+        new AsyncLegacyOperationResult(
             op,
             response.release());
 
@@ -610,7 +611,7 @@ void ProviderManagerService::asyncResponseCallback(
         {
                 Thread::setLanguages(AcceptLanguageList());
         }
- 
+
         if(request->getType() == CIM_STOP_ALL_PROVIDERS_REQUEST_MESSAGE)
         {
             _allProvidersStopped = true;
@@ -648,7 +649,7 @@ void ProviderManagerService::asyncResponseCallback(
                 providerManagerService->_updateModuleStatusToDisabled(
                     dmResp,providerModule);
             }
-        } 
+        }
     }
     catch (Exception &e)
     {
@@ -664,13 +665,12 @@ void ProviderManagerService::asyncResponseCallback(
         response->cimException = CIMException(CIM_ERR_FAILED, String());
     }
 
-    AsyncLegacyOperationResult * async_result =
-        new AsyncLegacyOperationResult(
-            op,
-            response);
+    // constructor of object is putting itself into a linked list
+    // DO NOT remove the new operator
+    new AsyncLegacyOperationResult(op, response);
 
     providerManagerService->_complete_op_node(op);
- 
+
     PEG_METHOD_EXIT();
 }
 
@@ -873,7 +873,8 @@ Message* ProviderManagerService::_processMessage(CIMRequestMessage* request)
 
     return response;
 }
-
+// idleTimeCleanup calls a separate thread to do the cleanup because it
+// could be a long running function.
 void ProviderManagerService::idleTimeCleanup()
 {
     PEG_METHOD_ENTER(TRC_PROVIDERMANAGER,
@@ -889,8 +890,10 @@ void ProviderManagerService::idleTimeCleanup()
     }
 
     //
-    // Start an idle time cleanup thread. 
+    // Start an idle time cleanup thread.
     //
+    // The call has a second purpose, to clean up a dead enumeration.
+    // In that case the contextId input would be non-empty
 
     if (_thread_pool->allocate_and_awaken((void*)this,
             ProviderManagerService::_idleTimeCleanupHandler) !=
@@ -908,9 +911,52 @@ void ProviderManagerService::idleTimeCleanup()
     }
 
     // Note: _idleTimeCleanupBusy is decremented in
-    // _idleTimeCleanupHandler 
+    // _idleTimeCleanupHandler
 
     PEG_METHOD_EXIT();
+}
+
+/*
+    enumerationContextCleanup does not call a separate thread to execute
+    because is is short running and is NOT run directly off the monitor
+    thread but off the enumerationContextTableTimeout thread.
+*/
+bool ProviderManagerService::enumerationContextCleanup(const String& contextId)
+{
+    PEG_METHOD_ENTER(TRC_PROVIDERMANAGER,
+        "ProviderManagerService::enumerationContextCleanup");
+    bool rtn = true;
+    // Ensure that only one _idleTimeCleanupHandler thread runs at a time
+    _idleTimeCleanupBusy++;
+    if (_idleTimeCleanupBusy.get() != 1)
+    {
+        _idleTimeCleanupBusy--;
+        rtn = false;
+    }
+    if (_oopProviderManagerRouter)
+    {
+        try
+        {
+            // call the oop providerManager. If the enumerationContextId
+            // string not empty this will be call to do enum context
+            // cleanup. Else it is call to do idleTimeCleanup.
+            _oopProviderManagerRouter->enumerationContextCleanup(
+                contextId);
+        }
+        catch (...)
+        {
+            // Ignore errors
+            PEG_TRACE_CSTRING(TRC_PROVIDERMANAGER, Tracer::LEVEL2,
+                "Unexpected exception from "
+                    "OOPProviderManagerRouter::enumerationContextCleanup");
+            rtn = false;
+        }
+    }
+
+        _idleTimeCleanupBusy--;
+
+        PEG_METHOD_EXIT();
+        return rtn;
 }
 
 ThreadReturnType PEGASUS_THREAD_CDECL
@@ -1026,7 +1072,7 @@ void ProviderManagerService::_updateModuleStatusToDisabled(
         if (dmResp->operationalStatus.size() > 0)
         {
             //
-            //  On a successful disable, remove an OK or 
+            //  On a successful disable, remove an OK or
             // a Degraded status, if present
             //
             if (dmResp->operationalStatus[
@@ -1086,7 +1132,7 @@ void ProviderManagerService::_updateProviderModuleStatus(
             MessageLoaderParms(
                 "ProviderManager.ProviderManagerService."
                     "SET_MODULE_STATUS_FAILED",
-                "set module status failed."));
+                "Failed to update the provider module status."));
     }
 
     operationalStatusProperty.setValue(CIMValue(operationalStatus));
@@ -1134,81 +1180,6 @@ void ProviderManagerService::_indicationDeliveryRoutine(
         request);
 
     providerManagerService->SendForget(asyncRequest);
-
-
-
-
-#ifdef PEGASUS_INDICATIONS_Q_THRESHOLD
-
-    // See Comments in config.mak asociated with
-    //  PEGASUS_INDICATIONS_Q_THRESHOLD
-    //
-    // if INDICATIONS_Q_STALL THRESHOLD is gt 0
-    // then if there are over INDICATIONS_Q_STALL_THRESHOLD
-    //           indications in the queue
-    //      then force this provider to sleep until the queue count
-    //      is lower than INDICATIONS_Q_RESUME_THRESHOLD
-
-static Mutex   indicationThresholdReportedLock;
-static Boolean indicationThresholdReported = false;
-
-#define INDICATIONS_Q_STALL_THRESHOLD PEGASUS_INDICATIONS_Q_THRESHOLD
-#define INDICATIONS_Q_RESUME_THRESHOLD \
-    (int)(PEGASUS_INDICATIONS_Q_THRESHOLD*.90)
-#define INDICATIONS_Q_STALL_DURATION 250 // milli-seconds
-
-    MessageQueue* indicationsQueue =
-        MessageQueue::lookup(_indicationServiceQueueId);
-
-    if (((MessageQueueService *)indicationsQueue)->getIncomingCount() >
-            INDICATIONS_Q_STALL_THRESHOLD)
-    {
-        AutoMutex indicationThresholdReportedAutoMutex(
-            indicationThresholdReportedLock);
-        if (!indicationThresholdReported)
-        {
-            indicationThresholdReported = true;
-            indicationThresholdReportedAutoMutex.unlock();
-
-            // make log entry to record que max exceeded
-            Logger::put(
-                Logger::STANDARD_LOG, System::CIMSERVER, Logger::INFORMATION,
-                "Indication generation stalled: maximum queue count ($0) "
-                    "exceeded.",
-                INDICATIONS_Q_STALL_THRESHOLD);
-        }
-        else
-        {
-            indicationThresholdReportedAutoMutex.unlock();
-        }
-
-        while (((MessageQueueService *)indicationsQueue)->getIncomingCount() >
-                   INDICATIONS_Q_RESUME_THRESHOLD)
-        {
-            Threads::sleep(INDICATIONS_Q_STALL_DURATION);
-        }
-
-        AutoMutex indicationThresholdReportedAutoMutex1(
-            indicationThresholdReportedLock);
-
-        if (indicationThresholdReported)
-        {
-            indicationThresholdReported = false;
-            indicationThresholdReportedAutoMutex1.unlock();
-
-            Logger::put(
-                Logger::STANDARD_LOG, System::CIMSERVER, Logger::INFORMATION,
-                "Indication generation resumed: current queue count = $0",
-                ((MessageQueueService *)indicationsQueue)->getIncomingCount());
-
-        }
-        else
-        {
-            indicationThresholdReportedAutoMutex1.unlock();
-        }
-    }
-#endif /* INDICATIONS_Q_STALL_THRESHOLD */
-
 }
 
 void ProviderManagerService::providerModuleGroupFailureCallback(
@@ -1258,7 +1229,7 @@ void ProviderManagerService::_reconcileProviderModuleFailure(
         Logger::put_l(
             Logger::STANDARD_LOG, System::CIMSERVER, Logger::WARNING,
             MessageLoaderParms(
-                "ProviderManager.OOPProviderManagerRouter."
+                "ProviderManager.ProviderManagerService."
                     "OOP_PROVIDER_MODULE_USER_CTXT_FAILURE_DETECTED",
                 "A failure was detected in provider module $0 with "
                     "user context $1.",
@@ -1269,7 +1240,7 @@ void ProviderManagerService::_reconcileProviderModuleFailure(
         Logger::put_l(
             Logger::STANDARD_LOG, System::CIMSERVER, Logger::WARNING,
             MessageLoaderParms(
-                "ProviderManager.OOPProviderManagerRouter."
+                "ProviderManager.ProviderManagerService."
                     "OOP_PROVIDER_MODULE_FAILURE_DETECTED",
                 "A failure was detected in provider module $0.",
                 moduleName));
@@ -1453,7 +1424,7 @@ void ProviderManagerService::_reconcileProviderModuleFailure(
                             System::CIMSERVER,
                             Logger::WARNING,
                             MessageLoaderParms(
-                                "ProviderManager.OOPProviderManagerRouter."
+                                "ProviderManager.ProviderManagerService."
                                    "OOP_PROVIDER_MODULE_SUBSCRIPTIONS_AFFECTED",
                                  "The generation of indications by providers"
                                      " in module $0 may be affected. To ensure"

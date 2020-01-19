@@ -33,6 +33,6 @@ include $(ROOT)/mak/config.mak
 DIRS = \
     MissingEntryPointHandler \
     HandlerTable \
-    DeliveryRetry
-
+    DeliveryRetry \
+    ReliableIndicationDisableEnable
 include $(ROOT)/mak/recurse.mak

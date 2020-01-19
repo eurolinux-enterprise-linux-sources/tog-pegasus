@@ -47,9 +47,6 @@
 #include "Buffer.h"
 #include "LanguageParser.h"
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-#include <Pegasus/Common/CIMKerberosSecurityAssociation.h>
-#endif
 #include <Pegasus/Common/XmlWriter.h>
 
 PEGASUS_USING_STD;
@@ -180,13 +177,6 @@ static inline Uint32 _Min(Uint32 x, Uint32 y)
     return x < y ? x : y;
 }
 
-// Used to test signal handling
-void * sigabrt_generator(void * parm)
-{
-    abort();
-    return 0;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -234,7 +224,7 @@ Boolean HTTPConnection::needsReconnect()
 {
     char buffer;
 
-    int n =  _socket->read(&buffer, sizeof(buffer));
+    int n =  _socket->peek(&buffer, sizeof(buffer));
 
     return n >= 0;
 }
@@ -370,6 +360,27 @@ void HTTPConnection::handleEnqueue(Message *message)
         PEG_METHOD_EXIT();
         return;
     }
+    // Lock monitor mutex before executing the message because, as part of the
+    // processing, HTTPConnection calls back to the monitor to set
+    // status (monitor::setStatus(...).
+    // See bug 10044
+    // monitor::setStatus() sets the monitor lock which, without this prior
+    // monitor lock could result in a deadlock for HTTPConnection calls from
+    // other threads. For example:
+    //
+    // monitor->_entriesLockMutex->dst->run-> httpConnection::run()
+    // creates SocketMsg-> handleEnqueue-> _handleReadEvent->
+    // Monitor::setstate(...)
+    //
+    // CIMOperationResponseEncoder::sendResponse->handleEnqueue->
+    // _handleWriteEvent->(lock HTTPconnection->_closeConnection()
+    //     Monitor::setState->_entriesMutex -- Deadlock
+    //
+    // TODO: There may be a more efficient way to handle this interaction than
+    // completely mutual exclusion of the monitor and HTTPConnection but this
+    // does remove the chance of deadlock. Today we are not sure what the
+    // effect would be of another way to handle the setState
+    AutoMutex monitorLock(_monitor->getLock());
 
     AutoMutex connectionLock(_connection_mut);
 
@@ -392,6 +403,19 @@ void HTTPConnection::handleEnqueue(Message *message)
 
             HTTPMessage* httpMessage = dynamic_cast<HTTPMessage*>(message);
             PEGASUS_ASSERT(httpMessage);
+
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+            // inject cookie to responses
+            String cookie = _authInfo->getCookie();
+            if (!_isClient() && cookie.size() > 0)
+            {
+                String header = "\r\nSet-Cookie: " + cookie;
+                httpMessage->injectHeader(header);
+                // don't send cookie in subsequent messages
+                _authInfo->setCookie("");
+            }
+#endif
+
             _handleWriteEvent(*httpMessage);
             break;
         }
@@ -491,7 +515,7 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
         {
             if (isFirst == true)
             {
-                _incomingBuffer.clear();
+                _outgoingBuffer.clear();
                 // tracks the message coming from above
                 _transferEncodingChunkOffset = 0;
                 _mpostPrefix.clear();
@@ -525,6 +549,10 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                             INTERNAL_SERVER_ERROR_CONNECTION_CLOSED,
                             _ipAddress));
                 }
+
+                // Cleanup Authentication Handle
+                // currently only PAM implemented, see Bug#9642
+                _authInfo->getAuthHandle().destroy();
                 return true;
             }
 
@@ -576,16 +604,16 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                 {
                     // subsequent chunks from the server, just append
 
-                    messageLength += _incomingBuffer.size();
-                    _incomingBuffer.reserveCapacity(messageLength+1);
-                    _incomingBuffer.append(buffer.getData(), buffer.size());
+                    messageLength += _outgoingBuffer.size();
+                    _outgoingBuffer.reserveCapacity(messageLength+1);
+                    _outgoingBuffer.append(buffer.getData(), buffer.size());
                     buffer.clear();
                     // null terminate
-                    messageStart = (char *) _incomingBuffer.getData();
+                    messageStart = (char *) _outgoingBuffer.getData();
                     messageStart[messageLength] = 0;
                     // put back in buffer, so the httpMessage parser can work
                     // below
-                    _incomingBuffer.swap(buffer);
+                    _outgoingBuffer.swap(buffer);
                 }
 
                 if (isLast == false)
@@ -600,7 +628,7 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                     {
                         buffer.clear();
                         // discard all data collected to this point
-                        _incomingBuffer.clear();
+                        _outgoingBuffer.clear();
                         String messageS = cimException.getMessage();
                         CString messageC = messageS.getCString();
                         messageStart = (char *) (const char *) messageC;
@@ -668,7 +696,7 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                         messageLength =
                             contentLanguagesString.size() + buffer.size();
 
-                        // Adding 8 bytes to capacity, since in the 
+                        // Adding 8 bytes to capacity, since in the
                         // binary case we might add up to 7 null bytes
                         buffer.reserveCapacity(messageLength+8);
                         messageLength = contentLanguagesString.size();
@@ -690,11 +718,11 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                             // add bytes if old is smaller than new
                             // if new and old amount equal -> do nothing
 
-                            // ((a+7) & ~7) <- round up to the next highest 
+                            // ((a+7) & ~7) <- round up to the next highest
                             // number dividable by eight
                             Uint32 extraNullBytes =
                                 ((headerLength + 7) & ~7) - headerLength;
-                            Uint32 newHeaderSize = 
+                            Uint32 newHeaderSize =
                                 headerLength+contentLanguagesString.size();
                             Uint32 newExtraNullBytes =
                                 ((newHeaderSize + 7) & ~7) - newHeaderSize;
@@ -707,12 +735,12 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                                     messageLength,
                                     extraNullBytes-newExtraNullBytes);
 
-                                contentLength -= 
+                                contentLength -=
                                     (extraNullBytes-newExtraNullBytes);
                             }
                             else
                             {
-                                Uint32 reqNullBytes = 
+                                Uint32 reqNullBytes =
                                     newExtraNullBytes - extraNullBytes;
                                 contentLanguagesString << headerLineTerminator;
                                 messageLength += headerLineTerminatorLength;
@@ -739,46 +767,6 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
                         bytesRemaining = messageLength;
                     } // if there were any content languages
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-                    // The following is processing to wrap (encrypt) the
-                    // response from the server when using kerberos
-                    // authentications.
-                    // If the security association does not exist then
-                    // kerberos authentication is not being used.
-                    CIMKerberosSecurityAssociation *sa =
-                        _authInfo->getSecurityAssociation();
-
-                    if (sa)
-                    {
-                        // The message needs to be parsed in order to
-                        // distinguish between the headers and content.
-                        // When parsing, the code breaks out of the loop
-                        // as soon as it finds the double separator that
-                        // terminates the headers so the headers and
-                        // content can be easily separated.
-
-                        Boolean authrecExists = false;
-                        const char* authorization;
-                        if (HTTPMessage::lookupHeader(
-                                headers, "WWW-Authenticate",
-                                authorization, false))
-                        {
-                            authrecExists = true;
-                        }
-
-                        // The following is processing to wrap (encrypt)
-                        // the response from the server when using
-                        // kerberos authentications.
-                        sa->wrapResponseMessage(
-                            buffer, contentLength, authrecExists);
-                        messageLength = buffer.size();
-
-                        // null terminate
-                        messageStart = (char *) buffer.getData();
-                        messageStart[messageLength] = 0;
-                        bytesRemaining = messageLength;
-                    }  // endif kerberos security assoc exists
-#endif
                 } // if chunk request is false
 
                 headerLength = messageLength - contentLength;
@@ -917,9 +905,9 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
             }
 
             // the data is sitting in buffer, but we want to cache it in
-            // _incomingBuffer because there may be more chunks to append
+            // _outgoingBuffer because there may be more chunks to append
             if (isChunkRequest == false)
-                _incomingBuffer.swap(buffer);
+                _outgoingBuffer.swap(buffer);
 
         } // if not a client
 
@@ -1159,7 +1147,7 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
 
     if (isLast == true)
     {
-        _incomingBuffer.clear();
+        _outgoingBuffer.clear();
         _transferEncodingTEValues.clear();
 
         // Reset the transfer encoding chunk offset. If it is not reset here,
@@ -1190,6 +1178,10 @@ Boolean HTTPConnection::_handleWriteEvent(HTTPMessage& httpMessage)
         //
         if (_isClient() == false)
         {
+            // Cleanup Authentication Handle
+            // currently only PAM implemented, see Bug#9642
+            _authInfo->getAuthHandle().destroy();
+
             if (_internalError)
             {
                 _closeConnection();
@@ -1249,7 +1241,9 @@ Boolean _IsBodylessMessage(const char* line)
     const char* METHOD_NAMES[] =
     {
         "GET",
-        "HEAD"
+        "HEAD",
+        "OPTIONS",
+        "DELETE"
     };
 
     // List of response codes which the client accepts and which should not
@@ -1347,8 +1341,7 @@ void HTTPConnection::_getContentLengthAndContentOffset()
     Boolean gotContentLanguage = false;
     Boolean gotTransferTE = false;
 
-    while ((sep =
-        HTTPMessage::findSeparator(line, (Uint32)(size - (line - data)))))
+    while ((sep = HTTPMessage::findSeparator(line)))
     {
         char save = *sep;
         *sep = '\0';
@@ -1633,16 +1626,6 @@ Boolean HTTPConnection::isChunkRequested()
         (Contains(_transferEncodingTEValues, String(headerValueTEchunked)) ||
          Contains(_transferEncodingTEValues, String(headerValueTEtrailers))))
         answer = true;
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    CIMKerberosSecurityAssociation *sa = _authInfo->getSecurityAssociation();
-
-    if (sa)
-    {
-        answer = false;
-    }
-#endif
-
     return answer;
 }
 
@@ -2213,14 +2196,21 @@ void HTTPConnection::_handleReadEvent()
         {
             char* buf = _incomingBuffer.getContentPtr();
             // The first bytes of a connection to the server have to contain
-            // a valid cim-over-http HTTP Method (M-POST or POST).
+            // a valid HTTP Method.
             if ((strncmp(buf, "POST", 4) != 0) &&
+                            (strncmp(buf, "PUT", 3) != 0) &&
+                            (strncmp(buf, "OPTIONS", 7) != 0) &&
+                            (strncmp(buf, "DELETE", 6) != 0) &&
+#if defined(PEGASUS_ENABLE_PROTOCOL_WEB)
+                            (strncmp(buf, "GET", 3) != 0) &&
+                            (strncmp(buf, "HEAD", 4) != 0) &&
+#endif
                 (strncmp(buf, "M-POST", 6) != 0))
             {
                 _clearIncoming();
 
                 PEG_TRACE((TRC_HTTP, Tracer::LEVEL2,
-                      "This Request has non-valid CIM-HTTP Method: "
+                      "This Request has an unknown HTTP Method: "
                       "%02X %02X %02X %02X %02X %02X",
                       buf[0],buf[1],buf[2],
                       buf[3],buf[4],buf[5]));
@@ -2390,7 +2380,7 @@ Boolean HTTPConnection::isResponsePending()
     return _responsePending;
 }
 
-Boolean HTTPConnection::run(Uint32 milliseconds)
+Boolean HTTPConnection::run()
 {
     Boolean handled_events = false;
     int events = 0;

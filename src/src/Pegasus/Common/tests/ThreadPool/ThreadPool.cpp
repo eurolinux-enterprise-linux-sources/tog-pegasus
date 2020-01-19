@@ -92,7 +92,7 @@ ThreadReturnType PEGASUS_THREAD_CDECL funcIncrementCounter(
 ThreadReturnType PEGASUS_THREAD_CDECL funcThrow(void* parm)
 {
     throw Uint32(10);
-    PEGASUS_UNREACHABLE(return 0);
+    PEGASUS_UNREACHABLE(return 0;)
 }
 
 void testDestructAsThreadCompletes()
@@ -363,7 +363,7 @@ void testBlockingThread()
     }
 }
 
-int main(int argc, char **argv)
+int main(int, char **argv)
 {
     verbose = (getenv("PEGASUS_TEST_VERBOSE")) ? true : false;
 

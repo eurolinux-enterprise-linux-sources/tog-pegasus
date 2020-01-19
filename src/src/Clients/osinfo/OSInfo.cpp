@@ -128,11 +128,6 @@ static const char LONG_HELP [] = "help";
 
 static const char LONG_VERSION [] = "version";
 
-static const char REQUIRED_ARGS_MISSING [] = "Required arguments missing.";
-
-static const char REQUIRED_ARGS_MISSING_KEY [] =
-    "Clients.cimuser.CIMUserCommand.REQUIRED_ARGS_MISSING";
-
 static const char ERR_USAGE [] =
     "Use '--help' to obtain command syntax.";
 
@@ -322,7 +317,7 @@ String OSInfoCommand::_promptForPassword( ostream& outPrintWriter )
                _portNumber = System::lookupPort( WBEM_HTTPS_SERVICE_NAME,
                                           WBEM_DEFAULT_HTTPS_PORT );
 #else
-               PEGASUS_ASSERT(false);
+               PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
            }
            else
@@ -373,7 +368,7 @@ String OSInfoCommand::_promptForPassword( ostream& outPrintWriter )
 
            client.connect(host, portNumber, sslcontext,  _userName, _password );
 #else
-            PEGASUS_ASSERT(false);
+           PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
         }
         else

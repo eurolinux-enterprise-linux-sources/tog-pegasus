@@ -1,12 +1,11 @@
 diff -up pegasus/mak/config-linux.mak.orig pegasus/mak/config-linux.mak
---- pegasus/mak/config-linux.mak.orig	2011-02-28 16:28:23.223507762 +0100
-+++ pegasus/mak/config-linux.mak	2011-02-28 16:29:37.946019681 +0100
-@@ -106,7 +106,7 @@ DYNAMIC_FLAGS += -fPIC
- ifdef PEGASUS_USE_DEBUG_BUILD_OPTIONS
-   FLAGS += -g
- else
--  FLAGS += -s
-+  FLAGS += -g
-   #
-   # The -fno-enforce-eh-specs is not available in 2.9.5 and it probably
+--- pegasus/mak/config-linux.mak.orig	2015-03-31 15:25:23.735154221 +0200
++++ pegasus/mak/config-linux.mak	2015-03-31 15:26:29.349434918 +0200
+@@ -127,6 +127,7 @@ else
    # appeared in the 3.0 series of compilers.
+   #
+   ifeq ($(COMPILER), gnu)
++   FLAGS += -g
+    # disable the strict aliasing
+    ifeq ($(shell expr $(GCC_VERSION) '>=' 3.0), 1)
+      PEGASUS_EXTRA_CXX_FLAGS += -fno-enforce-eh-specs -fno-strict-aliasing

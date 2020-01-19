@@ -493,7 +493,7 @@ void testEmbeddedValueArray(const CIMInstance & startInstance,
     PEGASUS_TEST_ASSERT (caught_exception == true);
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
 #ifdef IO
     verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
@@ -717,7 +717,6 @@ int main(int argc, char** argv)
     Boolean *b = new Boolean(true);
     Array<Boolean> arrB2(b,1);
     Array<Boolean> arrB3(2);
-    Boolean b1 = true, b2=false;
     test03(arrB1, arrB2, b, Boolean(true),Boolean(false));
     delete b;
 

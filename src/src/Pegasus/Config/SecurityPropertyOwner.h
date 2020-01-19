@@ -84,7 +84,7 @@ public:
        getPropertyHelp.  Overrides function in ConfigPropertyOwner
        to provide possible values.
      */
-    String getPropertyHelpSupplement(const String& name) const;
+////    String getPropertyHelpSupplement(const String& name) const;
 
     /**
         Get default value of the specified property.
@@ -209,19 +209,22 @@ private:
     AutoPtr<struct ConfigProperty> _sslTrustStoreUserName;
     AutoPtr<struct ConfigProperty> _enableSubscriptionsForNonprivilegedUsers;
     AutoPtr<struct ConfigProperty> _cipherSuite;
+    AutoPtr<struct ConfigProperty> _sslBackwardCompatibility;
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    AutoPtr<struct ConfigProperty> _httpSessionTimeout;
+#endif
 
 #ifdef PEGASUS_ENABLE_USERGROUP_AUTHORIZATION
     AutoPtr<struct ConfigProperty> _authorizedUserGroups;
-#endif
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    AutoPtr<struct ConfigProperty> _kerberosServiceName;
 #endif
 
 #ifdef PEGASUS_OS_ZOS
     AutoPtr<struct ConfigProperty> _enableCFZAPPLID;
 #endif
 
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    AutoPtr<struct ConfigProperty> _mapToLocalName;
+#endif
 };
 
 PEGASUS_NAMESPACE_END

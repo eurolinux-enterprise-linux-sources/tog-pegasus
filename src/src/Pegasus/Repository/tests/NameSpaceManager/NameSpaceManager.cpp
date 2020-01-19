@@ -111,10 +111,10 @@ void test01()
     // Create and delete a class to test these functions
     nsm.createClass(CIMNamespaceName("aa/bb"), "MySuperClass", CIMName());
     nsm.createClass(CIMNamespaceName("aa/bb"), "MyClass", "MySuperClass");
-    PEGASUS_ASSERT(
+    PEGASUS_TEST_ASSERT(
         nsm.getSuperClassName(CIMNamespaceName("aa/bb"), "MySuperClass") ==
         CIMName());
-    PEGASUS_ASSERT(
+    PEGASUS_TEST_ASSERT(
         nsm.getSuperClassName(CIMNamespaceName("aa/bb"), "MyClass") ==
         "MySuperClass");
     nsm.deleteClass(CIMNamespaceName("aa/bb"), "MyClass");
@@ -138,8 +138,9 @@ void test01()
     PEGASUS_TEST_ASSERT(nameSpaceNames.size() == 0);
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
+
     verbose = getenv ("PEGASUS_TEST_VERBOSE") ? true : false;
     if (verbose) cout << argv[0] << ": started" << endl;
 
@@ -154,6 +155,5 @@ int main(int argc, char** argv)
     }
 
     cout << argv[0] << " +++++ passed all tests" << endl;
-
     return 0;
 }

@@ -27,11 +27,16 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
+// This code implements part of PEP#348 - The CMPI infrastructure using SCMO
+// (Single Chunk Memory Objects).
+// The design document can be found on the OpenPegasus website openpegasus.org
+// at https://collaboration.opengroup.org/pegasus/pp/documents/21210/PEP_348.pdf
+//
 //%/////////////////////////////////////////////////////////////////////////////
 
 #ifndef _SCMODUMP_H_
 #define _SCMODUMP_H_
-
+# ifdef PEGASUS_DEBUG
 
 #include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/Linkage.h>
@@ -66,7 +71,8 @@ public:
     // Methods for SCMOInstance only
     void dumpSCMOInstance(
         SCMOInstance& testInst,
-        Boolean inclMemHdr = true) const;
+        Boolean inclMemHdr = true,
+        Boolean verbose = false) const;
     void dumpSCMOInstanceKeyBindings(
         SCMOInstance& testInst,
         Boolean verbose = false) const ;
@@ -130,6 +136,12 @@ private:
 
     void _hexDump(char* buffer,Uint64 length) const;
 
+    void _dumpEmbeddedInstance(SCMBUnion u, Boolean verbose) const;
+
+    void _dumpUserDefinedPropertyElement(char* instbase,
+        SCMBUserPropertyElement* theElement,
+        Boolean verbose) const;
+
     Boolean _fileOpen;
     FILE *_out;
     String _filename;
@@ -137,4 +149,5 @@ private:
 
 PEGASUS_NAMESPACE_END
 
+# endif // PEGASUS_DEBUG
 #endif

@@ -152,7 +152,7 @@ CIMInstance InteropProvider::localGetInstance(
         "%s getInstance. instanceName= %s , PropertyList= %s",
         thisProvider,
         (const char *)instanceName.toString().getCString(),
-        (const char *)propertyListToString(propertyList).getCString()));
+        (const char *)propertyList.toString().getCString()));
 
     // Test if we're looking for something outside of our namespace. This will
     // happen during associators calls from PG_RegisteredProfile instances
@@ -234,20 +234,21 @@ CIMInstance InteropProvider::localGetInstance(
                 }
             }
 
-            PEG_METHOD_EXIT();
             if (!found)
             {
+                PEG_METHOD_EXIT();
                 throw CIMObjectNotFoundException(instanceName.toString());
             }
         }
     }
 
+    PEG_METHOD_EXIT();
     return retInstance;
 }
 
 Array<CIMInstance> InteropProvider::getReferencedInstances(
     const Array<CIMInstance> &refs,
-    const String targetRole,
+    const String &targetRole,
     const OperationContext & context,
     const CIMPropertyList & propertyList)
 {
@@ -299,7 +300,7 @@ Array<CIMInstance> InteropProvider::getReferencedInstances(
         {
             case PG_SOFTWAREIDENTITY:
             {
-                CIMInstance retInstance = 
+                CIMInstance retInstance =
                     getSoftwareIdentityInstance(thisTarget);
                 normalizeInstance(
                     retInstance, thisTarget, false, false, propertyList);
@@ -370,15 +371,16 @@ Array<CIMInstance> InteropProvider::localEnumerateInstances(
 {
     PEG_METHOD_ENTER(TRC_CONTROLPROVIDER,
         "InteropProvider::localEnumerateInstances()");
+
     const CIMName & className = ref.getClassName();
     PEG_TRACE((TRC_CONTROLPROVIDER, Tracer::LEVEL4,
         "%s enumerateInstances. referenc= %s , PropertyList= %s",
         thisProvider,
         (const char *)className.getString().getCString(),
-        (const char *)propertyListToString(propertyList).getCString()));
+        (const char *)propertyList.toString().getCString()));
 
     // Verify that ClassName is correct and get its enum value
-    TARGET_CLASS classEnum  = translateClassInput(className);
+    TARGET_CLASS classEnum = translateClassInput(className);
 
     Array<CIMInstance> instances;
     switch(classEnum)
@@ -1002,7 +1004,7 @@ CIMInstance InteropProvider::buildInstanceSkeleton(
       CIMClass& returnedClass)
 {
     PEG_METHOD_ENTER(TRC_CONTROLPROVIDER,
-        "InteropProvider::_buildInstanceSkeleton()");
+        "InteropProvider::buildInstanceSkeleton()");
     // get class with lo = false, qualifier = true classorig = true
     returnedClass = repository->getClass(nameSpace,
         className, false, true, true);

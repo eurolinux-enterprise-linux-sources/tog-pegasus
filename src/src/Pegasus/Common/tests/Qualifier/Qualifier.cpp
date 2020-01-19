@@ -49,7 +49,7 @@ static const CIMFlavor CIMFLAVOR_ALL = CIMFlavor::OVERRIDABLE +
  It creates qualifiers, tests the scope, value and flavor characteristics.
  ATTN: P3 - KS March 2002 Add more tests for scope, etc.
 */
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
 #if defined(PEGASUS_OS_DARWIN) || defined (PEGASUS_OS_VMS)
     static const CIMFlavor CIMFLAVOR_ALL = CIMFlavor::OVERRIDABLE +
@@ -118,8 +118,7 @@ int main(int argc, char** argv)
     PEGASUS_TEST_ASSERT(!q2.getFlavor ().hasFlavor(CIMFlavor::TOSUBCLASS));
     PEGASUS_TEST_ASSERT(!q2.getFlavor ().hasFlavor(CIMFlavor::OVERRIDABLE));
 
-    Resolver::resolveQualifierFlavor(q2, CIMFlavor (CIMFlavor::OVERRIDABLE),
-            false);
+    Resolver::resolveQualifierFlavor(q2, CIMFlavor (CIMFlavor::OVERRIDABLE));
     PEGASUS_TEST_ASSERT(q2.getFlavor ().hasFlavor(CIMFlavor::OVERRIDABLE));
 
     q2.setFlavor(CIMFLAVOR_ALL);
@@ -138,7 +137,7 @@ int main(int argc, char** argv)
     q2.setFlavor (CIMFlavor::TOSUBCLASS + CIMFlavor::ENABLEOVERRIDE);
 
     Resolver::resolveQualifierFlavor (q2, CIMFlavor
-            (CIMFlavor::DISABLEOVERRIDE + CIMFlavor::RESTRICTED), false);
+            (CIMFlavor::DISABLEOVERRIDE + CIMFlavor::RESTRICTED));
     PEGASUS_TEST_ASSERT( q2.getFlavor ().hasFlavor(CIMFlavor::DISABLEOVERRIDE));
     PEGASUS_TEST_ASSERT(!q2.getFlavor ().hasFlavor(CIMFlavor::ENABLEOVERRIDE));
     PEGASUS_TEST_ASSERT(!q2.getFlavor ().hasFlavor(CIMFlavor::TOSUBCLASS));

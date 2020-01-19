@@ -71,9 +71,10 @@ PAMBasicAuthenticator::~PAMBasicAuthenticator()
     PEG_METHOD_EXIT();
 }
 
-Boolean PAMBasicAuthenticator::authenticate(
+AuthenticationStatus PAMBasicAuthenticator::authenticate(
     const String& userName,
-    const String& password)
+    const String& password,
+    AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "PAMBasicAuthenticator::authenticate()");
@@ -85,12 +86,12 @@ Boolean PAMBasicAuthenticator::authenticate(
     Boolean authenticated = false;
 
     PEG_METHOD_EXIT();
-
-    return authenticated;
+    return AuthenticationStatus(authenticated);
 }
 
-Boolean PAMBasicAuthenticator::validateUser(
-    const String& userName)
+AuthenticationStatus PAMBasicAuthenticator::validateUser(
+    const String& userName,
+    AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "PAMBasicAuthenticator::validateUser()");
@@ -102,8 +103,7 @@ Boolean PAMBasicAuthenticator::validateUser(
     Boolean authenticated = false;
 
     PEG_METHOD_EXIT();
-
-    return authenticated;
+    return AuthenticationStatus(authenticated);
 }
 
 //
@@ -121,7 +121,6 @@ String PAMBasicAuthenticator::getAuthResponseHeader()
     responseHeader.append(_realm);
 
     PEG_METHOD_EXIT();
-
     return responseHeader;
 }
 

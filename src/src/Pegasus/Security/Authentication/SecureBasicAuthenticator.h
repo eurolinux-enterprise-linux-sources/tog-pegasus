@@ -32,7 +32,9 @@
 #ifndef Pegasus_SecureBasicAuthenticator_h
 #define Pegasus_SecureBasicAuthenticator_h
 
-#include <Pegasus/Security/UserManager/UserManager.h>
+#ifndef PEGASUS_PAM_AUTHENTICATION
+# include <Pegasus/Security/UserManager/UserManager.h>
+#endif
 
 #include "BasicAuthenticator.h"
 
@@ -57,18 +59,25 @@ public:
     /** Verify the authentication of the requesting user.
         @param userName String containing the user name
         @param password String containing the user password
-        @return true on successful authentication, false otherwise
+        @param authInfo AuthenticationInfo holding ALL request specific
+               authentication information
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean authenticate(
+    AuthenticationStatus authenticate(
         const String& userName,
-        const String& password);
+        const String& password,
+        AuthenticationInfo* authInfo);
 
     /**
         Verify whether the user is valid.
         @param userName String containing the user name
-        @return true on successful validation, false otherwise
+        @param authInfo reference to AuthenticationInfo object that holds the
+        authentication information for the given connection.
+        @return AuthenticationStatus holding http status code and error detail
     */
-    Boolean validateUser(const String& userName);
+    AuthenticationStatus validateUser(
+        const String& userName,
+        AuthenticationInfo* authInfo);
 
     /** Construct and return the HTTP Basic authentication challenge header
         @return A string containing the authentication challenge header.
@@ -94,7 +103,9 @@ private:
 #endif // end PEGASUS_OS_ZOS
 
     String        _realm;
+#ifndef PEGASUS_PAM_AUTHENTICATION
     UserManager*  _userManager;
+#endif
 };
 
 PEGASUS_NAMESPACE_END

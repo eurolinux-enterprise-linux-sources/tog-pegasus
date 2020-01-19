@@ -36,6 +36,7 @@
 #include <Pegasus/Common/PegasusAssert.h>
 #include <Pegasus/Common/Tracer.h>
 #include <Pegasus/Common/CIMStatusCode.h>
+#include <Pegasus/Common/Pegasus_inl.h>
 #include "CIMCLICommon.h"
 #include "CIMCLIClient.h"
 #include <cstdarg>
@@ -186,16 +187,51 @@ void cimcliMsg::msg(
     cout << Formatter::format(formatString, arg0, arg1, arg2) << endl;
 }
 
-/* Convert Boolean parameter to String "true" or "false"
+
+/** Internationalized msg with output Message to cerr
 */
-String _toString(Boolean x)
+void cimcliMsg::errmsg(
+    const MessageLoaderParms& msgParms)
 {
-    return(x ? "true" : "false");
+    MessageLoaderParms parms = msgParms;
+    parms.useProcessLocale = true;
+    parms.msg_src_path = MSG_PATH;
+    cerr << MessageLoader::getMessage(parms) << endl;
+}
+
+/** Optimized one-parameter form of Message output
+*/
+void cimcliMsg::errmsg(
+    const String& formatString,
+    const Formatter::Arg& arg0)
+{
+    cout << Formatter::format(formatString, arg0) << endl;
+}
+
+/** Optimized two-argument form of Message output
+*/
+void cimcliMsg::errmsg(
+    const String& formatString,
+    const Formatter::Arg& arg0,
+    const Formatter::Arg& arg1)
+{
+    cerr << Formatter::format(formatString, arg0, arg1) << endl;
+}
+
+/** Optimized three-argument form of Message output
+*/
+void cimcliMsg::errmsg(
+    const String& formatString,
+    const Formatter::Arg& arg0,
+    const Formatter::Arg& arg1,
+    const Formatter::Arg& arg2)
+{
+    cerr << Formatter::format(formatString, arg0, arg1, arg2) << endl;
 }
 
 void _print(Boolean x)
 {
-    cout << _toString(x);
+    cout << boolToString(x);
 }
 
 String _toString(Array<CIMName> array)
@@ -210,30 +246,17 @@ String _toString(Array<CIMName> array)
     return rtn;
 }
 
-// Convert a CIMPropertyList parameter to CIM String
-String _toString(const CIMPropertyList& pl)
+String loadMessage(const char* key, const char* msg)
 {
-    String rtn;
-    Array<CIMName> pls = pl.getPropertyNameArray();
-    if (pl.isNull())
-        return("NULL");
-
-    if (pl.size() == 0)
-        return("EMPTY");
-
-    for (Uint32 i = 0 ; i < pls.size() ; i++)
-    {
-        if (i != 0)
-            rtn.append(", ");
-        rtn.append(pls[i].getString());
-    }
-    return(rtn);
+    MessageLoaderParms parms(key, msg);
+    parms.msg_src_path = MSG_PATH;
+    return MessageLoader::getMessage(parms);
 }
 
 // Output a CIMPropertyList to cout
 void _print(const CIMPropertyList& pl)
 {
-    cout << _toString(pl);
+    cout << pl.toString();
 }
 
 String _toString(const Array<CIMNamespaceName>& nsList)
@@ -397,16 +420,27 @@ Real64 strToReal(const char * str, CIMType type)
             "Value conversion error. $0. type $1\n",
                str, cimTypeToString(type));
     }
+    if (type == CIMTYPE_REAL32)
+    {
+        if ((r64 > 3.4E+38f) || (r64 < -3.4E38f))
+        {
+            cimcliMsg::exit(CIMCLI_INPUT_ERR,
+                "Value Invalid size. $0. type $1\n",
+                   str, cimTypeToString(type));
+        }
+    }
     return r64;
 }
 
-void cimcliExit(Uint32 exitCode)
+// Local function that tests exitCode against expectedExitCode and
+// returns proper result. Used only by cimcliExit and cimcliExitRtn
+Uint32 _cimcliExitLocal(Uint32 exitCode)
 {
     // This should be the only use of exit in cimcli.
     // all other exits should use cimcliExit
     if (expectedExitCode == exitCode)
     {
-        exit(0);
+        return 0;
     }
 
     // Do not print a warning message if the expected return code is
@@ -419,7 +453,15 @@ void cimcliExit(Uint32 exitCode)
              << ". Program delivered exit code (" << exitCode
              << ") " << rtnExitCodeToString(exitCode) << endl;
     }
-    exit(exitCode);
+    return exitCode;
+}
+Uint32 cimcliExitRtn(Uint32 exitCode)
+{
+    return _cimcliExitLocal(exitCode);
+}
+void cimcliExit(Uint32 exitCode)
+{
+    exit(_cimcliExitLocal(exitCode));
 }
 
 void setExpectedExitCode(Uint32 exitCode)
@@ -435,64 +477,6 @@ void setExpectedExitCode(Uint32 exitCode)
 **  issues internally.
 **
 ***************************************************************************/
-//  Function to return a formatted char*  from a va_list.
-//  Allocates space for the returned char* and repeats the
-//  build process until the allocated space is large enough
-//  to hold the result.  This is internal only and the core function
-//  used by stringPrintf and stringVPrintf
-
-static char* charVPrintf(const char* format, va_list ap)
-{
-    // Iniitial allocation size.  This is a guess assuming that
-    // most printfs are one or two lines long
-    int allocSize = 256;
-
-    int rtnSize;
-    char *p;
-
-    // initial allocate for output
-    if ((p = (char*)malloc(allocSize)) == NULL)
-    {
-        return 0;
-    }
-
-    // repeat formatting  with increased realloc until it works.
-    do
-    {
-        rtnSize = vsnprintf(p, allocSize, format, ap);
-
-        // return if successful if not negative and
-        // returns less than allocated size.
-        if (rtnSize > -1 && rtnSize < allocSize)
-        {
-            return p;
-        }
-
-        // increment alloc size. Assumes that positive return is
-        // expected size and negative is error.
-        allocSize = (rtnSize > -1)? (rtnSize + 1) : allocSize * 2;
-
-    } while((p = (char*)realloc(p, allocSize)) != NULL);
-
-    // return error code if realloc failed
-    return 0;
-}
-// Formatting function that returns a Pegasus String object.
-String stringPrintf(const char* format, ...)
-{
-    va_list ap;
-    va_start(ap, format);
-
-    // Format into allocated memory
-    char* rtnCharPtr = charVPrintf(format, ap);
-    va_end(ap);
-
-    // Free allocated memory and return formatted output in String
-    String rtnString(rtnCharPtr);
-    free(rtnCharPtr);
-
-    return(rtnString);
-}
 
 String fillString(Uint32 count,  const char x)
 {

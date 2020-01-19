@@ -27,11 +27,6 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
-// Author: Nag Boranna, Hewlett-Packard Company(nagaraja_boranna@hp.com)
-//
-// Modified By:
-//            Sushma Fernandes, Hewlett-Packard Company(sushma_fernandes@hp.com)
-//
 //%/////////////////////////////////////////////////////////////////////////////
 
 #ifndef Pegasus_BasicAuthenticator_h
@@ -39,8 +34,10 @@
 
 #include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/String.h>
+#include <Pegasus/Common/AuthenticationInfo.h>
 
 #include <Pegasus/Security/Authentication/Linkage.h>
+#include <Pegasus/Security/Authentication/AuthenticationStatus.h>
 
 PEGASUS_NAMESPACE_BEGIN
 
@@ -61,11 +58,14 @@ public:
     /** Verify the authentication of the requesting user.
         @param userName String containing the user name
         @param password String containing the user password
-        @return true on successful authentication, false otherwise
+        @param authInfo AuthenticationInfo holding ALL request specific
+               authentication information
+        @return AuthenticationStatus holding http status code and error detail
     */
-    virtual Boolean authenticate(
+    virtual AuthenticationStatus authenticate(
         const String& userName,
-        const String& password) = 0;
+        const String& password,
+        AuthenticationInfo* authInfo) = 0;
 
     /** Construct and return the HTTP Basic authentication challenge header
         @return A string containing the authentication challenge header.
@@ -75,9 +75,13 @@ public:
     /**
         Verify whether the user is valid.
         @param userName String containing the user name
-        @return true on successful validation, false otherwise
+        @param authInfo AuthenticationInfo holding ALL request specific
+               authentication information
+        @return AuthenticationStatus holding http status code and error detail
     */
-    virtual Boolean validateUser(const String& userName) = 0;
+    virtual AuthenticationStatus validateUser(
+        const String& userName,
+        AuthenticationInfo* authInfo) = 0;
 };
 
 

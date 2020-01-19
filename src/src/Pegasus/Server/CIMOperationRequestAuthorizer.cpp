@@ -29,12 +29,14 @@
 //
 //%/////////////////////////////////////////////////////////////////////////////
 
-#include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/Constants.h>
-#include <Pegasus/Security/UserManager/UserManager.h>
+#ifndef PEGASUS_PAM_AUTHENTICATION
+# include <Pegasus/Security/UserManager/UserManager.h>
+#endif
 #include <Pegasus/Common/HTTPMessage.h>
 #include <Pegasus/Common/XmlWriter.h>
 #include <Pegasus/Common/Tracer.h>
+#include <Pegasus/Config/ConfigManager.h>
 #include <Pegasus/Common/MessageLoader.h>
 #include "CIMOperationRequestAuthorizer.h"
 
@@ -291,7 +293,7 @@ void CIMOperationRequestAuthorizer::handleEnqueue(Message* request)
             break;
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             break;
     }
 
@@ -347,7 +349,7 @@ void CIMOperationRequestAuthorizer::handleEnqueue(Message* request)
     {
         if ( ! System::isPrivilegedUser(userName) )
         {
-            Uint32 size = _authorizedUserGroups.size();
+            const Uint32 size = _authorizedUserGroups.size();
 
             if (size > 0)
             {
@@ -448,6 +450,7 @@ void CIMOperationRequestAuthorizer::handleEnqueue(Message* request)
         //
         if (!System::isPrivilegedUser(userName))
         {
+#ifndef PEGASUS_PAM_AUTHENTICATION
             UserManager* userManager = UserManager::getInstance();
 
             if (!userManager ||
@@ -490,6 +493,7 @@ void CIMOperationRequestAuthorizer::handleEnqueue(Message* request)
                 PEG_METHOD_EXIT();
                 return;
             }
+#endif
         }
     }
 
@@ -508,7 +512,9 @@ void CIMOperationRequestAuthorizer::handleEnqueue()
 
     Message* request = dequeue();
     if (request)
+    {
         handleEnqueue(request);
+    }
 
     PEG_METHOD_EXIT();
 }
@@ -542,7 +548,7 @@ Array<String> CIMOperationRequestAuthorizer::_getAuthorizedUserGroups()
     //
     // Check if the group name is empty
     //
-    if (groupNames == String::EMPTY)
+    if (groupNames.size() == 0 )
     {
         PEG_METHOD_EXIT();
         return authorizedGroups;
@@ -556,7 +562,7 @@ Array<String> CIMOperationRequestAuthorizer::_getAuthorizedUserGroups()
     Uint32 position = 0;
     String groupName;
 
-    while (groupNames != String::EMPTY)
+    while (groupNames.size() != 0 )
     {
         //
         // Get a group name from user groups

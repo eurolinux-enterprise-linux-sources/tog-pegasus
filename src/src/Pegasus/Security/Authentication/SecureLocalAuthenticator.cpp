@@ -33,7 +33,6 @@
 #include <Pegasus/Common/FileSystem.h>
 #include <Pegasus/Common/Tracer.h>
 #include <Pegasus/Common/Executor.h>
-#include <Executor/Strlcpy.h>
 
 #include "LocalAuthFile.h"
 #include "SecureLocalAuthenticator.h"
@@ -72,7 +71,7 @@ SecureLocalAuthenticator::~SecureLocalAuthenticator()
 //
 // Does local authentication
 //
-Boolean SecureLocalAuthenticator::authenticate(
+AuthenticationStatus SecureLocalAuthenticator::authenticate(
    const String& filePath,
    const String& secretReceived,
    const String& secretKept)
@@ -121,10 +120,12 @@ Boolean SecureLocalAuthenticator::authenticate(
 
     PEG_METHOD_EXIT();
 
-    return authenticated;
+    return AuthenticationStatus(authenticated);
 }
 
-Boolean SecureLocalAuthenticator::validateUser (const String& userName)
+AuthenticationStatus SecureLocalAuthenticator::validateUser(
+    const String& userName,
+    AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "SecureLocalAuthenticator::validateUser()");
@@ -137,7 +138,7 @@ Boolean SecureLocalAuthenticator::validateUser (const String& userName)
     }
 
     PEG_METHOD_EXIT();
-    return (authenticated);
+    return AuthenticationStatus(authenticated);
 }
 
 //
@@ -165,6 +166,7 @@ String SecureLocalAuthenticator::getAuthResponseHeader(
         if (Executor::challengeLocal(
                 userName.getCString(), filePathBuffer) != 0)
         {
+            PEG_METHOD_EXIT();
             throw CannotOpenFile(filePathBuffer);
         }
         filePath = filePathBuffer;
@@ -190,7 +192,6 @@ String SecureLocalAuthenticator::getAuthResponseHeader(
     }
 
     PEG_METHOD_EXIT();
-
     return responseHeader;
 }
 

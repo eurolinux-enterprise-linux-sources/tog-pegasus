@@ -41,6 +41,7 @@
 #include <Pegasus/Common/FileSystem.h>
 #include <Pegasus/Common/System.h>
 #include "ConfigExceptions.h"
+#include <Pegasus/Common/StringConversion.h>
 
 PEGASUS_USING_STD;
 
@@ -50,8 +51,8 @@ PEGASUS_NAMESPACE_BEGIN
  * The Server message resource name
  */
 
-static const char * SSL_POSSIBLE_VALUE_KEY =
-        "Config.SecurityPropertyOwner.SSLClientVerification_POSSIBLE_VALUE";
+//// static const char * SSL_POSSIBLE_VALUE_KEY =
+////        "Config.SecurityPropertyOwner.SSLClientVerification_POSSIBLE_VALUE";
 
 ///////////////////////////////////////////////////////////////////////////////
 //  SecurityPropertyOwner
@@ -91,13 +92,17 @@ static struct ConfigPropertyRow properties[] =
     {"sslClientVerificationMode", "optional", IS_STATIC, IS_VISIBLE},
     {"sslTrustStoreUserName", "QYCMCIMOM", IS_STATIC, IS_VISIBLE},
     {"enableNamespaceAuthorization", "false", IS_STATIC, IS_VISIBLE},
-# ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    {"kerberosServiceName", "cimom", IS_STATIC, IS_VISIBLE},
-# endif
+    {"sslBackwardCompatibility","false", IS_STATIC, IS_VISIBLE},
     {"enableSubscriptionsForNonprivilegedUsers", "false", IS_STATIC,
         IS_VISIBLE},
     {"enableRemotePrivilegedUserAccess", "true", IS_STATIC, IS_VISIBLE},
     {"authorizedUserGroups", "", IS_STATIC, IS_VISIBLE},
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    {"httpSessionTimeout", "0", IS_DYNAMIC, IS_VISIBLE},
+#endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    {"mapToLocalName", "false", IS_STATIC, IS_VISIBLE},
+#endif
 #else // PEGASUS_OS_PASE
     {"enableAuthentication", "false", IS_STATIC, IS_VISIBLE},
     {"httpAuthType", "Basic", IS_STATIC, IS_VISIBLE},
@@ -109,15 +114,13 @@ static struct ConfigPropertyRow properties[] =
 #endif
     {"sslKeyFilePath", "file.pem", IS_STATIC, IS_VISIBLE},
     {"sslTrustStore", "cimserver_trust", IS_STATIC, IS_VISIBLE},
+    {"sslBackwardCompatibility","false", IS_STATIC, IS_VISIBLE},
 #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
     {"crlStore", "crl", IS_STATIC, IS_VISIBLE},
 #endif
     {"sslClientVerificationMode", "disabled", IS_STATIC, IS_VISIBLE},
     {"sslTrustStoreUserName", "", IS_STATIC, IS_VISIBLE},
     {"enableNamespaceAuthorization", "false", IS_STATIC, IS_VISIBLE},
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    {"kerberosServiceName", "cimom", IS_STATIC, IS_VISIBLE},
-#endif
 #if defined(PEGASUS_OS_HPUX) || defined(PEGASUS_OS_LINUX)
 # ifdef PEGASUS_USE_RELEASE_CONFIG_OPTIONS
     {"enableSubscriptionsForNonprivilegedUsers",
@@ -138,6 +141,12 @@ static struct ConfigPropertyRow properties[] =
     {"authorizedUserGroups", "", IS_STATIC, IS_VISIBLE},
 #endif
     {"sslCipherSuite", "DEFAULT", IS_STATIC, IS_VISIBLE}
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    ,{"httpSessionTimeout", "0", IS_DYNAMIC, IS_VISIBLE}
+#endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    ,{"mapToLocalName", "false", IS_STATIC, IS_VISIBLE},
+#endif
 #endif
 };
 
@@ -152,6 +161,7 @@ SecurityPropertyOwner::SecurityPropertyOwner()
     _httpAuthType.reset(new ConfigProperty());
     _passwordFilePath.reset(new ConfigProperty());
     _certificateFilePath.reset(new ConfigProperty());
+    _sslBackwardCompatibility.reset(new ConfigProperty());
     _keyFilePath.reset(new ConfigProperty());
     _trustStore.reset(new ConfigProperty());
 #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
@@ -164,14 +174,16 @@ SecurityPropertyOwner::SecurityPropertyOwner()
 #ifdef PEGASUS_ENABLE_USERGROUP_AUTHORIZATION
     _authorizedUserGroups.reset(new ConfigProperty());
 #endif
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    _kerberosServiceName.reset(new ConfigProperty());
-#endif
 #ifdef PEGASUS_OS_ZOS
     _enableCFZAPPLID.reset(new ConfigProperty());
 #endif
     _cipherSuite.reset(new ConfigProperty());
-
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    _httpSessionTimeout.reset(new ConfigProperty());
+#endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    _mapToLocalName.reset(new ConfigProperty());
+#endif
 }
 
 
@@ -241,6 +253,22 @@ void SecurityPropertyOwner::initialize()
             _certificateFilePath->plannedValue = properties[i].defaultValue;
             _certificateFilePath->dynamic = properties[i].dynamic;
             _certificateFilePath->externallyVisible =
+                properties[i].externallyVisible;
+        }
+        else if (String::equal(
+                     properties[i].propertyName, "sslBackwardCompatibility"))
+        {
+            _sslBackwardCompatibility->propertyName = 
+                properties[i].propertyName;
+            _sslBackwardCompatibility->defaultValue =
+                properties[i].defaultValue;
+            _sslBackwardCompatibility->currentValue = 
+                properties[i].defaultValue;
+            _sslBackwardCompatibility->plannedValue = 
+                properties[i].defaultValue;
+            _sslBackwardCompatibility->dynamic = 
+                properties[i].dynamic;
+            _sslBackwardCompatibility->externallyVisible =
                 properties[i].externallyVisible;
         }
         else if (String::equal(
@@ -350,19 +378,6 @@ void SecurityPropertyOwner::initialize()
                 properties[i].externallyVisible;
         }
 #endif
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-        else if (String::equal(
-                     properties[i].propertyName, "kerberosServiceName"))
-        {
-            _kerberosServiceName->propertyName = properties[i].propertyName;
-            _kerberosServiceName->defaultValue = properties[i].defaultValue;
-            _kerberosServiceName->currentValue = properties[i].defaultValue;
-            _kerberosServiceName->plannedValue = properties[i].defaultValue;
-            _kerberosServiceName->dynamic = properties[i].dynamic;
-            _kerberosServiceName->externallyVisible =
-                properties[i].externallyVisible;
-        }
-#endif
 #ifdef PEGASUS_OS_ZOS
         else if (String::equal(
                      properties[i].propertyName, "enableCFZAPPLID"))
@@ -373,6 +388,19 @@ void SecurityPropertyOwner::initialize()
             _enableCFZAPPLID->plannedValue = properties[i].defaultValue;
             _enableCFZAPPLID->dynamic = properties[i].dynamic;
             _enableCFZAPPLID->externallyVisible =
+                properties[i].externallyVisible;
+        }
+#endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+        else if (String::equal(
+                     properties[i].propertyName, "mapToLocalName"))
+        {
+            _mapToLocalName->propertyName = properties[i].propertyName;
+            _mapToLocalName->defaultValue = properties[i].defaultValue;
+            _mapToLocalName->currentValue = properties[i].defaultValue;
+            _mapToLocalName->plannedValue = properties[i].defaultValue;
+            _mapToLocalName->dynamic = properties[i].dynamic;
+            _mapToLocalName->externallyVisible =
                 properties[i].externallyVisible;
         }
 #endif
@@ -387,6 +415,19 @@ void SecurityPropertyOwner::initialize()
             _cipherSuite->externallyVisible =
                 properties[i].externallyVisible;
         }
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+        else if (String::equal(
+                     properties[i].propertyName, "httpSessionTimeout"))
+        {
+            _httpSessionTimeout->propertyName = properties[i].propertyName;
+            _httpSessionTimeout->defaultValue = properties[i].defaultValue;
+            _httpSessionTimeout->currentValue = properties[i].defaultValue;
+            _httpSessionTimeout->plannedValue = properties[i].defaultValue;
+            _httpSessionTimeout->dynamic = properties[i].dynamic;
+            _httpSessionTimeout->externallyVisible =
+                    properties[i].externallyVisible;
+        }
+#endif
     }
 
 }
@@ -414,6 +455,10 @@ struct ConfigProperty* SecurityPropertyOwner::_lookupConfigProperty(
     else if (String::equal(_certificateFilePath->propertyName, name))
     {
         return _certificateFilePath.get();
+    }
+    else if (String::equal(_sslBackwardCompatibility->propertyName, name))
+    {
+        return _sslBackwardCompatibility.get();
     }
     else if (String::equal(_keyFilePath->propertyName, name))
     {
@@ -455,22 +500,28 @@ struct ConfigProperty* SecurityPropertyOwner::_lookupConfigProperty(
         return _authorizedUserGroups.get();
     }
 #endif
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    else if (String::equal(_kerberosServiceName->propertyName, name))
-    {
-        return _kerberosServiceName.get();
-    }
-#endif
 #ifdef PEGASUS_OS_ZOS
     else if (String::equal(_enableCFZAPPLID->propertyName, name))
     {
         return _enableCFZAPPLID.get();
     }
 #endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    else if (String::equal(_mapToLocalName->propertyName, name))
+    {
+        return _mapToLocalName.get();
+    }
+#endif
     else if (String::equal(_cipherSuite->propertyName, name))
     {
         return _cipherSuite.get();
     }
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    else if (String::equal(_httpSessionTimeout->propertyName, name))
+    {
+        return _httpSessionTimeout.get();
+    }
+#endif
     else
     {
         throw UnrecognizedConfigProperty(name);
@@ -489,32 +540,6 @@ void SecurityPropertyOwner::getPropertyInfo(
     buildPropertyInfo(name, configProperty, propertyInfo);
 }
 
-// Adds supplement help info for sslClientVerification property in this
-// class
-String SecurityPropertyOwner::getPropertyHelpSupplement(
-    const String& name) const
-{
-    String localPropertyInfo = "";
-    if (String::equalNoCase(_sslClientVerificationMode->propertyName, name))
-    {
-        String possibleValueString =
-"Possible Values:\n"
-"\"required\" Server requires certificate-based client authentication.\n"
-"    Client MUST present trusted certificateto access the CIM Server.\n"
-"    If client fails to send certificate or sends untrusted certificate,\n"
-"    connection is rejected.\n"
-"\"optional\" Server supports but does not require certificate-based\n"
-"    client authentication. Connection is accepted even if no/untrusted\n"
-"    certificate sent. Server will then seek to authenticate client\n"
-"    via authentication header.\n"
-"\"disabled\" Server does not support certificate-based authentication.\n";
-        MessageLoaderParms parms1(SSL_POSSIBLE_VALUE_KEY,
-            possibleValueString);
-        parms1.msg_src_path = CONFIG_MSG_PATH;
-        localPropertyInfo.append(MessageLoader::getMessage(parms1));
-    }
-    return localPropertyInfo;
-}
 
 /**
     Get default value of the specified property.
@@ -619,9 +644,14 @@ Boolean SecurityPropertyOwner::isValid(
         String::equal(
             _enableRemotePrivilegedUserAccess->propertyName, name) ||
         String::equal(
-            _enableSubscriptionsForNonprivilegedUsers->propertyName, name)
+            _enableSubscriptionsForNonprivilegedUsers->propertyName, name) ||
+        String::equal(
+            _sslBackwardCompatibility->propertyName, name)
 #ifdef PEGASUS_OS_ZOS
         || String::equal(_enableCFZAPPLID->propertyName, name)
+#endif
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+        || String::equal(_mapToLocalName->propertyName, name)
 #endif
         )
     {
@@ -630,8 +660,8 @@ Boolean SecurityPropertyOwner::isValid(
     else if (String::equal(_httpAuthType->propertyName, name))
     {
         if (String::equal(value, "Basic") || String::equal(value, "Digest")
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-            || String::equal(value, "Kerberos")
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+            || String::equal(value, "Negotiate")
 #endif
         )
         {
@@ -822,24 +852,6 @@ Boolean SecurityPropertyOwner::isValid(
         retVal = true;
     }
 #endif
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    else if (String::equal(_kerberosServiceName->propertyName, name))
-    {
-        String serviceName(value);
-
-        //
-        // Check if the service name is empty
-        //
-        if (serviceName == String::EMPTY || serviceName== "")
-        {
-            retVal =  false;
-        }
-        else
-        {
-           retVal =  true;
-        }
-    }
-#endif
     else if (String::equal(_cipherSuite->propertyName, name))
     {
         String cipherSuite(value);
@@ -856,6 +868,15 @@ Boolean SecurityPropertyOwner::isValid(
            retVal =  true;
         }
     }
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    else if (String::equal(_httpSessionTimeout->propertyName, name))
+    {
+        Uint64 v;
+        return
+            StringConversion::decimalStringToUint64(value.getCString(), v) &&
+            StringConversion::checkUintBounds(v, CIMTYPE_UINT32);
+    }
+#endif
     else
     {
         throw UnrecognizedConfigProperty(name);

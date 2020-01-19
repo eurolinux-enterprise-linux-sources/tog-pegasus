@@ -480,6 +480,21 @@ void CMPIProviderManager::_setupCMPIContexts(
             "CMPIRRemoteInfo",(CMPIValue*)(const char*)(*remoteInfo),
             CMPI_chars);
     }
+
+    // add User Role from OperationContext to CMPIRole
+
+    if (context->contains(UserRoleContainer::NAME))
+    {
+        const UserRoleContainer container=context->get(UserRoleContainer::NAME);
+
+        CString userRole = container.getUserRole().getCString();
+
+        eCtx->ft->addEntry(
+            eCtx,
+            CMPIRole,
+            (CMPIValue*)(const char*) userRole,
+            CMPI_chars);
+    }
 }
 
 /*
@@ -1194,8 +1209,6 @@ Message * CMPIProviderManager::handleExecQueryRequest(const Message * message)
             &ph,
             &remoteInfo,
             remote);
-
-        const char **props=NULL;
 
         CMPIStatus rc={CMPI_RC_OK,NULL};
         CMPI_ContextOnStack eCtx(request->operationContext);
@@ -2085,9 +2098,9 @@ Message * CMPIProviderManager::handleCreateSubscriptionRequest(
             }
             // Note that per provider subscription path - namespace
             // MUST be unique.
-            Boolean ok = indProvRec->addSelectExp(
-                sPath, request->nameSpace, eSelx);
-            PEGASUS_ASSERT(ok);
+            PEGASUS_FCT_EXECUTE_AND_ASSERT(
+                true,
+                indProvRec->addSelectExp(sPath, request->nameSpace, eSelx));
         }
 
 
@@ -2242,8 +2255,10 @@ Message * CMPIProviderManager::handleCreateSubscriptionRequest(
         {
             //  Remove the select expression from the cache
             WriteLock lock(rwSemProvTab);
-            Boolean ok = indProvRec->deleteSelectExp(sPath, request->nameSpace);
-            PEGASUS_ASSERT(ok);
+            PEGASUS_FCT_EXECUTE_AND_ASSERT(
+                true,
+                indProvRec->deleteSelectExp(sPath, request->nameSpace));
+            
             delete eSelx;
             throw CIMException((CIMStatusCode)rc.rc,
                 rc.msg ? CMGetCharsPtr(rc.msg, NULL) : String::EMPTY);
@@ -2330,8 +2345,9 @@ Message * CMPIProviderManager::handleDeleteSubscriptionRequest(
                 // failed to get select expression from hash table
                 throw CIMException(CIM_ERR_FAILED, parms);
             }
-            Boolean ok = indProvRec->deleteSelectExp(sPath, request->nameSpace);
-            PEGASUS_ASSERT(ok);
+            PEGASUS_FCT_EXECUTE_AND_ASSERT(
+                true,
+                indProvRec->deleteSelectExp(sPath, request->nameSpace));
         }
 
         CString className = eSelx->classNames[0].getClassName().
@@ -2521,10 +2537,11 @@ Message * CMPIProviderManager::handleDisableModuleRequest(
     for (Uint32 i = 0, n = _pInstances.size(); i < n; i++)
     {
         String providerName;
-        _pInstances[i].getProperty(_pInstances [i].findProperty
-            (PEGASUS_PROPERTYNAME_NAME)).getValue().get(providerName);
 
         Uint32 pos = _pInstances[i].findProperty(PEGASUS_PROPERTYNAME_NAME);
+
+        _pInstances[i].getProperty(pos).getValue().get(providerName);
+
 
         if (!providerManager.isProviderActive(providerName, moduleName))
         {
@@ -2533,9 +2550,7 @@ Message * CMPIProviderManager::handleDisableModuleRequest(
 
         Boolean unloadOk = providerManager.unloadProvider(
             physicalName,
-            _pInstances[i].getProperty(
-                _pInstances[i].findProperty(PEGASUS_PROPERTYNAME_NAME)
-                ).getValue ().toString (),
+            _pInstances[i].getProperty(pos).getValue().toString(),
             moduleName);
 
         if (!unloadOk)
@@ -3210,7 +3225,6 @@ void CMPIProviderManager::_callEnableIndications
             context.insert(idContainer);
 #endif
 
-            CMPIStatus rc={CMPI_RC_OK,NULL};
             CMPI_ContextOnStack eCtx(context);
             CMPI_ThreadContext thr(pr.getBroker(),&eCtx);
 
@@ -3297,7 +3311,6 @@ void CMPIProviderManager::_callDisableIndications
         if (pr.getIndMI()->ft->ftVersion >= 86)
         {
             OperationContext context;
-            CMPIStatus rc={CMPI_RC_OK,NULL};
             CMPI_ContextOnStack eCtx(context);
 
             if (remoteInfo)

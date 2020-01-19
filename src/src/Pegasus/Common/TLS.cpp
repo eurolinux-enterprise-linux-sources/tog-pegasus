@@ -222,6 +222,22 @@ Sint32 SSLSocket::read(void* ptr, Uint32 size)
     return rc;
 }
 
+Sint32 SSLSocket::peek(void* ptr, Uint32 size)
+{
+    PEG_METHOD_ENTER(TRC_SSL, "SSLSocket::peek()");
+    Sint32 rc;
+
+    PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4, "---> SSL: (r) ");
+    PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
+                      SSL_state_string_long(static_cast<SSL*>(_SSLConnection)));
+    rc = SSL_peek(static_cast<SSL*>(_SSLConnection), (char *)ptr, size);
+
+    _sslReadErrno = errno;
+
+    PEG_METHOD_EXIT();
+    return rc;
+}
+
 Sint32 SSLSocket::timedWrite( const void* ptr,
                               Uint32 size,
                               Uint32 socketWriteTimeout)
@@ -413,7 +429,7 @@ Sint32 SSLSocket::accept()
        PEG_METHOD_EXIT();
        return -1;
     }
-    PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3, "---> SSL: Accepted");
+    PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4, "---> SSL: Accepted");
 
     //
     // If peer certificate verification is enabled or request received on
@@ -461,7 +477,7 @@ Sint32 SSLSocket::accept()
     }
     else
     {
-        PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL3,
+        PEG_TRACE_CSTRING(TRC_SSL, Tracer::LEVEL4,
             "---> SSL: Client certificate verification disabled");
     }
 
@@ -722,6 +738,14 @@ Sint32 MP_Socket::read(void * ptr, Uint32 size)
         return Socket::read(_socket,ptr,size);
 }
 
+Sint32 MP_Socket::peek(void * ptr, Uint32 size)
+{
+    if (_isSecure)
+        return _sslsock->peek(ptr,size);
+    else
+        return Socket::peek(_socket,ptr,size);
+}
+
 Sint32 MP_Socket::write(const void * ptr, Uint32 size)
 {
     if (_isSecure)
@@ -810,9 +834,9 @@ MP_Socket::MP_Socket(SocketHandle socket)
 
 MP_Socket::MP_Socket(
     SocketHandle socket,
-    SSLContext * sslcontext,
-    ReadWriteSem * sslContextObjectLock,
-    const String& ipAddress)
+    SSLContext *,
+    ReadWriteSem *,
+    const String&)
  : _socket(socket), _isSecure(false),
    _socketWriteTimeout(PEGASUS_DEFAULT_SOCKETWRITE_TIMEOUT_SECONDS) {}
 
@@ -825,7 +849,7 @@ MP_Socket::~MP_Socket()
 
 Boolean MP_Socket::isSecure() {return _isSecure;}
 
-Boolean MP_Socket::incompleteSecureReadOccurred(Sint32 retCode)
+Boolean MP_Socket::incompleteSecureReadOccurred(Sint32)
 {
     return false;
 }
@@ -838,6 +862,11 @@ SocketHandle MP_Socket::getSocket()
 Sint32 MP_Socket::read(void * ptr, Uint32 size)
 {
     return Socket::read(_socket,ptr,size);
+}
+
+Sint32 MP_Socket::peek(void * ptr, Uint32 size)
+{
+    return Socket::peek(_socket,ptr,size);
 }
 
 Sint32 MP_Socket::write(const void * ptr, Uint32 size)
@@ -891,7 +920,7 @@ Sint32 MP_Socket::accept()
 #endif
 }
 
-Sint32 MP_Socket::connect(Uint32 timeoutMilliseconds) { return 0; }
+Sint32 MP_Socket::connect(Uint32) { return 0; }
 
 Boolean MP_Socket::isPeerVerificationEnabled() { return false; }
 

@@ -37,6 +37,13 @@
 # include <openssl/err.h>
 # include <openssl/ssl.h>
 # include <openssl/rand.h>
+
+//Include the applink.c to stop crashes as per OpenSSL FAQ
+//http://www.openssl.org/support/faq.html#PROG
+# ifdef PEGASUS_OS_TYPE_WINDOWS
+ # include<openssl/applink.c>
+# endif
+
 #else
 # define SSL_CTX void
 #endif
@@ -59,15 +66,23 @@ extern "C"
 
 PEGASUS_NAMESPACE_BEGIN
 
+#ifdef PEGASUS_HAS_SSL
 struct FreeX509STOREPtr
 {
     void operator()(X509_STORE* ptr)
     {
-#ifdef PEGASUS_HAS_SSL
         X509_STORE_free(ptr);
-#endif
     }
 };
+#else
+struct FreeX509STOREPtr
+{
+    void operator()(X509_STORE*)
+    {
+    }
+};
+#endif
+
 
 #ifdef PEGASUS_HAS_SSL
 
@@ -86,8 +101,12 @@ public:
         if (_instanceCount == 0)
         {
             _initializeCallbacks();
-            SSL_load_error_strings();
+
+            //important as per following site for 
+            //http://www.openssl.org/support/faq.html#PROG
+            CRYPTO_malloc_init();
             SSL_library_init();
+            SSL_load_error_strings();
         }
 
         _instanceCount++;
@@ -166,8 +185,8 @@ private:
     static void _lockingCallback(
         int mode,
         int type,
-        const char* file,
-        int line)
+        const char*,
+        int)
     {
         if (mode & CRYPTO_LOCK)
         {
@@ -236,7 +255,8 @@ public:
         const String& crlPath = String::EMPTY,
         SSLCertificateVerifyFunction* verifyCert = NULL,
         const String& randomFile = String::EMPTY,
-        const String& cipherSuite = String::EMPTY);
+        const String& cipherSuite = String::EMPTY,
+        const Boolean& sslCompatibility = false);
 
     SSLContextRep(const SSLContextRep& sslContextRep);
 
@@ -293,6 +313,7 @@ private:
     String _crlPath;
     String _randomFile;
     String _cipherSuite;
+    Boolean _sslCompatibility;
     SSL_CTX * _sslContext;
 
     Boolean _verifyPeer;

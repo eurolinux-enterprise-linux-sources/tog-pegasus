@@ -43,14 +43,22 @@ PEGASUS_NAMESPACE_BEGIN
 const String AuthenticationInfoRep::AUTH_TYPE_SSL = "SSL";
 const String AuthenticationInfoRep::AUTH_TYPE_ZOS_LOCAL_DOMIAN_SOCKET = "LDS";
 const String AuthenticationInfoRep::AUTH_TYPE_ZOS_ATTLS = "ATTLS";
+const String AuthenticationInfoRep::AUTH_TYPE_COOKIE = "COOKIE";
 
-AuthenticationInfoRep::AuthenticationInfoRep(Boolean flag)
+AuthenticationInfoRep::AuthenticationInfoRep()
     : _connectionAuthenticated(false),
-      _wasRemotePrivilegedUserAccessChecked(false)
+      _wasRemotePrivilegedUserAccessChecked(false),
+      _authHandle(),
+      _isExpiredPassword(false)
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+      ,_cookie()
+#endif
 {
     PEG_METHOD_ENTER(
         TRC_AUTHENTICATION, "AuthenticationInfoRep::AuthenticationInfoRep");
-
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+      _session.reset(new NegotiateServerSession());
+#endif
     PEG_METHOD_EXIT();
 }
 
@@ -75,7 +83,7 @@ AuthenticationInfoRep::~AuthenticationInfoRep()
             FileSystem::removeFile(_localAuthFilePath);
         }
     }
-       
+
     PEG_METHOD_EXIT();
 }
 
@@ -159,21 +167,6 @@ void AuthenticationInfoRep::setAuthType(const String& authType)
 
     PEG_METHOD_EXIT();
 }
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-void AuthenticationInfoRep::setSecurityAssociation()
-{
-    PEG_METHOD_ENTER(
-        TRC_AUTHENTICATION, "AuthenticationInfoRep::setSecurityAssociation");
-
-    if ( !_securityAssoc.get() )
-    {
-        _securityAssoc.reset(new CIMKerberosSecurityAssociation);
-    }
-
-    PEG_METHOD_EXIT();
-}
-#endif
 
 void AuthenticationInfoRep::setClientCertificateChain(
     Array<SSLCertificateInfo*> clientCertificate)

@@ -37,7 +37,7 @@
 
 PEGASUS_NAMESPACE_BEGIN
 
-class PEGASUS_SERVER_LINKAGE CQLOperationRequestDispatcher : 
+class PEGASUS_SERVER_LINKAGE CQLOperationRequestDispatcher :
     public CIMOperationRequestDispatcher
 {
 private:
@@ -49,16 +49,27 @@ private:
     {
     }
 
+public:
+
     virtual ~CQLOperationRequestDispatcher() {}
 
-public:
-    void handleQueryRequest(
-        CIMExecQueryRequestMessage* request);
+    /** Procces the query request. If there is an error returns the
+       cimException and return = true
+       @param request Query message being processed
+       @param cimException CIMException that will contain the
+       CIMException to be returned if there was an error in processing.
+       Only set when the return is true
+       parm enumerationContext EnumerationContext object if this is
+       a pull request. Otherwise it is NULL
+       @return true if no errors. False if there were errors in processing
+       and the cimException parameter must contain the error.
+    */
+    bool handleQueryRequest(
+        CIMExecQueryRequestMessage* request,
+        CIMException& cimException,
+        EnumerationContext* enumerationContext = NULL);
 
-    void handleQueryResponseAggregation(
-        OperationAggregate* poA);
-
-    void applyQueryToEnumeration(
+    static void applyQueryToEnumeration(
         CIMResponseMessage* msg,
         QueryExpressionRep* query);
 };

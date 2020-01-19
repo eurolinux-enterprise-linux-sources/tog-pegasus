@@ -760,11 +760,11 @@ void test03()
         // Attempt to resolve the class
         Resolver::resolveClass(super, context, NAMESPACE);
         // An exception should have been thrown
-        PEGASUS_ASSERT(false);
+        PEGASUS_TEST_ASSERT(false);
     }
     catch (CIMException& e)
     {
-        PEGASUS_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
+        PEGASUS_TEST_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
     }
 
     // Make sure we can resolve the class if it is an association
@@ -797,11 +797,11 @@ void test03()
         // Attempt to resolve the class with references to non-existent classes
         Resolver::resolveClass(c, context, NAMESPACE);
         // An exception should have been thrown
-        PEGASUS_ASSERT(false);
+        PEGASUS_TEST_ASSERT(false);
     }
     catch (CIMException& e)
     {
-        PEGASUS_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
+        PEGASUS_TEST_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
     }
 
     // Make sure we can resolve the class if it is an association.
@@ -1215,11 +1215,11 @@ void test08()
         // Attempt to resolve the class with references to non-existent classes
         Resolver::resolveClass(c, context, NAMESPACE);
         // An exception should have been thrown
-        PEGASUS_ASSERT(false);
+        PEGASUS_TEST_ASSERT(false);
     }
     catch (CIMException& e)
     {
-        PEGASUS_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
+        PEGASUS_TEST_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
     }
 
     delete context;
@@ -1292,11 +1292,11 @@ void test09()
         // Attempt to resolve the class with references to non-existent classes
         Resolver::resolveClass(c, context, NAMESPACE);
         // An exception should have been thrown
-        PEGASUS_ASSERT(false);
+        PEGASUS_TEST_ASSERT(false);
     }
     catch (CIMException& e)
     {
-        PEGASUS_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
+        PEGASUS_TEST_ASSERT(e.getCode() == CIM_ERR_INVALID_PARAMETER);
     }
 
     delete context;
@@ -1313,7 +1313,7 @@ void test09()
 //  on flavors
 //
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
 

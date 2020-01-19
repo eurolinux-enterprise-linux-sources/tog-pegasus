@@ -67,6 +67,11 @@ static const String BASIC_AUTH_HEADER = "Authorization: Basic ";
 static const String DIGEST_AUTH_HEADER = "Authorization: Digest ";
 
 /**
+    Constant representing the Negotiate authentication header.
+*/
+static const String NEGOTIATE_AUTH_HEADER = "Authorization: Negotiate ";
+
+/**
     Constant representing the local authentication header.
 */
 static const String LOCAL_AUTH_HEADER = "PegasusAuthorization: Local";
@@ -83,6 +88,9 @@ ClientAuthenticator::~ClientAuthenticator()
 
 void ClientAuthenticator::clear()
 {
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    _session.reset(new NegotiateClientSession(String::EMPTY));
+#endif
     _requestMessage.reset();
     _userName.clear();
     _password.clear();
@@ -90,6 +98,7 @@ void ClientAuthenticator::clear()
     _localAuthFileContent.clear();
     _challengeReceived = false;
     _authType = ClientAuthenticator::NONE;
+    _cookie.clear();
 }
 
 Boolean ClientAuthenticator::checkResponseHeaderForChallenge(
@@ -100,6 +109,7 @@ Boolean ClientAuthenticator::checkResponseHeaderForChallenge(
     //
     const char* authHeader;
     String authType;
+    String authChallenge;
     String authRealm;
 
     if (!HTTPMessage::lookupHeader(
@@ -108,66 +118,83 @@ Boolean ClientAuthenticator::checkResponseHeaderForChallenge(
         return false;
     }
 
-    if (_challengeReceived)
-    {
-        // Do not respond to a challenge more than once
-        return false;
-    }
-    else
-    {
-       _challengeReceived = true;
-
-       //
-       // Parse the authentication challenge header
-       //
-       if (!_parseAuthHeader(authHeader, authType, authRealm))
-       {
-           throw InvalidAuthHeader();
-       }
-
-       if (String::equal(authType, "Local"))
-       {
-           _authType = ClientAuthenticator::LOCAL;
-       }
-       else if ( String::equal(authType, "Basic"))
-       {
-           _authType = ClientAuthenticator::BASIC;
-       }
-       else if ( String::equal(authType, "Digest"))
-       {
-           _authType = ClientAuthenticator::DIGEST;
-       }
-       else
-       {
-           throw InvalidAuthHeader();
-       }
-
-       if (_authType == ClientAuthenticator::LOCAL)
-       {
-           String filePath = authRealm;
-           FileSystem::translateSlashes(filePath);
-
-           // Check whether the directory is a valid pre-defined directory.
-           //
-           Uint32 index = filePath.reverseFind('/');
-
-           if (index != PEG_NOT_FOUND)
-           {
-               String dirName = filePath.subString(0,index);
-
-               if (!String::equal(dirName, String(PEGASUS_LOCAL_AUTH_DIR)))
-               {
-                   // Refuse to respond to the challenge when the file is
-                   // not in the expected directory
-                   return false;
-               }
-           }
-
-           _localAuthFile = authRealm;
-       }
-
-       return true;
+   //
+   // Parse the authentication challenge header
+   //
+   if (!_parseAuthHeader(authHeader, authType, authChallenge))
+   {
+       throw InvalidAuthHeader();
    }
+
+   if (String::equal(authType, "Local"))
+   {
+       _authType = ClientAuthenticator::LOCAL;
+       authRealm = _parseBasicRealm(authChallenge);
+       if (authRealm.size() == 0)
+           return false;
+   }
+   else if ( String::equal(authType, "Basic"))
+   {
+       _authType = ClientAuthenticator::BASIC;
+       authRealm = _parseBasicRealm(authChallenge);
+       if (authRealm.size() == 0)
+           return false;
+   }
+   else if ( String::equal(authType, "Digest"))
+   {
+       _authType = ClientAuthenticator::DIGEST;
+   }
+   else if ( String::equal(authType, "Negotiate"))
+   {
+       _authType = ClientAuthenticator::NEGOTIATE;
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+       _session->parseChallenge(authChallenge);
+#endif
+   }
+   else
+   {
+       throw InvalidAuthHeader();
+   }
+
+   if (_challengeReceived)
+   {
+       // Do not respond to a challenge more than once.
+       // Only Negotiate authentication can take multiple roundtrips,
+       // but stop it when the server returns empty challenge.
+       if (_authType != ClientAuthenticator::NEGOTIATE
+               || authChallenge.size() == 0)
+       {
+           return false;
+       }
+   }
+
+   _challengeReceived = true;
+
+   if (_authType == ClientAuthenticator::LOCAL)
+   {
+       String filePath = authRealm;
+       FileSystem::translateSlashes(filePath);
+
+       // Check whether the directory is a valid pre-defined directory.
+       //
+       Uint32 index = filePath.reverseFind('/');
+
+       if (index != PEG_NOT_FOUND)
+       {
+           String dirName = filePath.subString(0,index);
+
+           if (!String::equal(dirName, String(PEGASUS_LOCAL_AUTH_DIR)))
+           {
+               // Refuse to respond to the challenge when the file is
+               // not in the expected directory
+               return false;
+           }
+       }
+
+       _localAuthFile = authRealm;
+   }
+
+   return true;
 }
 
 
@@ -230,6 +257,13 @@ String ClientAuthenticator::buildRequestAuthHeader()
         //    }
             break;
 
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+        case ClientAuthenticator::NEGOTIATE:
+            challengeResponse = NEGOTIATE_AUTH_HEADER;
+            challengeResponse.append(_session->buildRequestAuthData());
+            break;
+#endif
+
         case ClientAuthenticator::LOCAL:
 
             challengeResponse = LOCAL_AUTH_HEADER;
@@ -259,11 +293,11 @@ String ClientAuthenticator::buildRequestAuthHeader()
             break;
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             break;
     }
 
-    return (challengeResponse);
+    return challengeResponse;
 }
 
 void ClientAuthenticator::setRequestMessage(Message* message)
@@ -303,11 +337,19 @@ void ClientAuthenticator::setPassword(const String& password)
     _password = password;
 }
 
+void ClientAuthenticator::setHost(const String& host)
+{
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    _session.reset(new NegotiateClientSession(host));
+#endif
+}
+
 void ClientAuthenticator::setAuthType(ClientAuthenticator::AuthType type)
 {
     PEGASUS_ASSERT( (type == ClientAuthenticator::BASIC) ||
          (type == ClientAuthenticator::DIGEST) ||
          (type == ClientAuthenticator::LOCAL) ||
+         (type == ClientAuthenticator::NEGOTIATE) ||
          (type == ClientAuthenticator::NONE) );
 
     _authType = type;
@@ -395,14 +437,14 @@ String ClientAuthenticator::_buildLocalAuthResponse()
 Boolean ClientAuthenticator::_parseAuthHeader(
     const char* authHeader,
     String& authType,
-    String& authRealm)
+    String& authChallenge)
 {
     //
     // Skip the white spaces in the begining of the header
     //
     while (*authHeader && isspace(*authHeader))
     {
-        *authHeader++;
+        ++authHeader;
     }
 
     //
@@ -415,29 +457,42 @@ Boolean ClientAuthenticator::_parseAuthHeader(
         return false;
     }
 
-    //
-    // Ignore the start quote
-    //
-    _getSubStringUptoMarker(&authHeader, CHAR_QUOTE);
+    // skip any spaces between authentication type and data
+    while (*authHeader && isspace(*authHeader))
+    {
+        ++authHeader;
+    }
 
+    // the rest is challenge
+    String challenge(authHeader);
 
-    //
-    // Get the realm ending with a quote
-    //
-    String realm = _getSubStringUptoMarker(&authHeader, CHAR_QUOTE);
-
-    if (!realm.size())
+    // There must be challenge in the header.
+    // Except Negotiate authentication, where the first 401 Unauthorized
+    // has no challenge.
+    if (!challenge.size() && !String::equal(type, "Negotiate"))
     {
         return false;
     }
 
     authType = type;
 
-    authRealm = realm;
+    authChallenge= challenge;
 
     return true;
 }
 
+String ClientAuthenticator::_parseBasicRealm(const String &challenge)
+{
+    CString str = challenge.getCString();
+    const char *challengeStr = str;
+    //
+    // Ignore everything up to the start quote
+    //
+    _getSubStringUptoMarker(&challengeStr, CHAR_QUOTE);
+    String realm = _getSubStringUptoMarker(&challengeStr, CHAR_QUOTE);
+
+    return realm;
+}
 
 String ClientAuthenticator::_getSubStringUptoMarker(
     const char** line,
@@ -476,6 +531,36 @@ String ClientAuthenticator::_getSubStringUptoMarker(
     }
 
     return result;
+}
+
+void ClientAuthenticator::parseCookie(Array<HTTPHeader> headers)
+{
+    // This code assumes there is at maximum one Set-Cookie header in a
+    // response. In real HTTP, multiple Set-Cookie headers may be present.
+    const char* cookieHeader;
+    if (!HTTPMessage::lookupHeader(
+            headers, "Set-Cookie", cookieHeader, false))
+    {
+        return;
+    }
+
+    // Skip initial whitespaces
+    while (*cookieHeader && isspace(*cookieHeader))
+    {
+        ++cookieHeader;
+    }
+
+    _cookie = _getSubStringUptoMarker(&cookieHeader, ';');
+}
+
+String ClientAuthenticator::getCookie()
+{
+    return _cookie;
+}
+
+void ClientAuthenticator::clearCookie()
+{
+    _cookie.clear();
 }
 
 PEGASUS_NAMESPACE_END

@@ -42,14 +42,14 @@ PEGASUS_USING_STD;
 PEGASUS_NAMESPACE_BEGIN
 
 CIMExportClient::CIMExportClient(
-   Monitor* monitor,
-   HTTPConnector* httpConnector,
-   Uint32 timeoutMilliseconds)
-   :
-   ExportClient(PEGASUS_QUEUENAME_EXPORTCLIENT,
-       httpConnector,
-       timeoutMilliseconds),
-   _monitor(monitor)
+    Monitor* monitor,
+    HTTPConnector* httpConnector,
+    Uint32 timeoutMilliseconds)
+    :
+    ExportClient(PEGASUS_QUEUENAME_EXPORTCLIENT,
+        httpConnector,
+        timeoutMilliseconds,
+        monitor)
 {
     PEG_METHOD_ENTER (TRC_EXPORT_CLIENT, "CIMExportClient::CIMExportClient()");
     PEG_METHOD_EXIT();
@@ -65,9 +65,9 @@ CIMExportClient::~CIMExportClient()
 }
 
 void CIMExportClient::exportIndication(
-   const String& url,
-   const CIMInstance& instanceName,
-   const ContentLanguageList& contentLanguages)
+    const String& url,
+    const CIMInstance& instanceName,
+    const ContentLanguageList& contentLanguages)
 {
     PEG_METHOD_ENTER (TRC_EXPORT_CLIENT, "CIMExportClient::exportIndication()");
 
@@ -139,7 +139,7 @@ Message* CIMExportClient::_doRequest(
     
     if (_connected && _httpConnection->needsReconnect())
     {
-        _disconnect();
+        _disconnect(true);
         _doReconnect = true;
     }
 
@@ -211,7 +211,7 @@ Message* CIMExportClient::_doRequest(
             //
             if (response->getCloseConnect() == true)
             {
-                _disconnect();
+                _disconnect(true);
                 _doReconnect = true;
                 response->setCloseConnect(false);
             }
@@ -349,7 +349,7 @@ Message* CIMExportClient::_doRequest(
     PEG_TRACE_CSTRING(TRC_EXPORT_CLIENT, Tracer::LEVEL2,
         "Connection to the listener timed out.");
 
-    _disconnect();
+    _disconnect(true);
     _doReconnect = true;
 
     //

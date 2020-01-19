@@ -37,8 +37,6 @@
 PEGASUS_USING_PEGASUS;
 PEGASUS_USING_STD;
 
-static char * verbose;
-
 #ifdef PEGASUS_ENABLE_IPV6
 static void _testIPv6()
 {
@@ -105,7 +103,7 @@ static void _testIPv6()
 }
 #endif
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     PEGASUS_TEST_ASSERT(System::strcasecmp("","") == 0);
     PEGASUS_TEST_ASSERT(System::strcasecmp("a","A") == 0);

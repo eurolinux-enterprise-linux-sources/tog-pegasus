@@ -82,6 +82,7 @@
 
 #define PEGASUS_QUEUENAME_WSMANEXPORTCLIENT    "WSMANExportClient"
 #define PEGASUS_QUEUENAME_WSMANEXPORTREQENCODER  "WSMANExportRequestEncoder"
+#define PEGASUS_QUEUENAME_WSMANEXPORTRESPENCODER  "WSMANExportResponseDecoder"
 
 /*
  * ModuleController Module Names
@@ -126,6 +127,10 @@
 #define HTTP_REASONPHRASE_OK "OK"
 #define HTTP_STATUS_OK "200 OK"
 
+#define HTTP_STATUSCODE_PARTIALCONTENT 206
+#define HTTP_REASONPHRASE_PARTIALCONTENT "Partial Content"
+#define HTTP_PARTIALCONTENT "206 Partial Content"
+
 #define HTTP_STATUSCODE_BADREQUEST 400
 #define HTTP_REASONPHRASE_BADREQUEST "Bad Request"
 #define HTTP_STATUS_BADREQUEST "400 Bad Request"
@@ -138,9 +143,33 @@
 #define HTTP_REASONPHRASE_FORBIDDEN    "Forbidden"
 #define HTTP_STATUS_FORBIDDEN    "403 Forbidden"
 
+#define HTTP_STATUSCODE_NOTFOUND    404
+#define HTTP_REASONPHRASE_NOTFOUND  "Not Found"
+#define HTTP_STATUS_NOTFOUND        "404 Not Found"
+
+#define HTTP_STATUSCODE_NOTFOUND    404
+#define HTTP_REASONPHRASE_NOTFOUND  "Not Found"
+#define HTTP_STATUS_NOTFOUND        "404 Not Found"
+
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+ #define HTTP_STATUSCODE_METHODNOTALLOWED 405
+ #define HTTP_REASONPHRASE_METHODNOTALLOWED "Method Not Allowed"
+ #define HTTP_STATUS_METHODNOTALLOWED "405 Method Not Allowed"
+
+ #define HTTP_STATUSCODE_NOTACCEPTABLE 406
+ #define HTTP_REASONPHRASE_NOTACCEPTABLE "Not Acceptable"
+ #define HTTP_STATUS_NOTACCEPTABLE "406 Not Acceptable"
+#endif /* PEGASUS_ENABLE_PROTOCOL_WEB */
+
 #define HTTP_STATUSCODE_REQUEST_TOO_LARGE 413
 #define HTTP_REASONPHRASE_REQUEST_TOO_LARGE "Request Entity Too Large"
 #define HTTP_STATUS_REQUEST_TOO_LARGE "413 Request Entity Too Large"
+
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+ #define HTTP_STATUSCODE_REQUESTURITOOLONG 414
+ #define HTTP_REASONPHRASE_REQUESTURITOOLONG "Request URI Too Long"
+ #define HTTP_STATUS_REQUESTURITOOLONG "414 Request URI Too Long"
+#endif /* PEGASUS_ENABLE_PROTOCOL_WEB */
 
 #define HTTP_STATUSCODE_INTERNALSERVERERROR 500
 #define HTTP_REASONPHRASE_INTERNALSERVERERROR "Internal Server Error"
@@ -153,6 +182,12 @@
 #define HTTP_STATUSCODE_SERVICEUNAVAILABLE 503
 #define HTTP_REASONPHRASE_SERVICEUNAVAILABLE "Service Unavailable"
 #define HTTP_STATUS_SERVICEUNAVAILABLE "503 Service Unavailable"
+
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+ #define HTTP_STATUSCODE_VERSIONNOTSUPPORTED 505
+ #define HTTP_REASONPHRASE_VERSIONNOTSUPPORTED "HTTP Version Not Supported"
+ #define HTTP_STATUS_VERSIONNOTSUPPORTED "505 HTTP Version Not Supported"
+#endif /* PEGASUS_ENABLE_PROTOCOL_WEB */
 
 
 /*
@@ -176,8 +211,41 @@
 #define PEGASUS_SSL_ACCEPT_TIMEOUT_SECONDS 20
 #define PEGASUS_PROVIDER_IDLE_TIMEOUT_SECONDS 300
 
+/*
+ * Pull Operation constants.  These constants define the
+ * limits for each of the defined configuration variables that may
+ * be set by the configuration manager as well as compile time
+ * constants
+*/
+//
+//  Runtime pull operation config pull configuration parameter limits
+//
+#define PEGASUS_DEFAULT_PULL_OPERATION_TIMEOUT_SEC 30
+#define PEGASUS_DEFAULT_PULL_OPERATION_TIMEOUT_SEC_STRING "30"
+#define PEGASUS_PULL_OPERATION_MAX_TIMEOUT_SEC 90
+#define PEGASUS_PULL_OPERATION_MAX_TIMEOUT_SEC_STRING "90"
+#define PEGASUS_PULL_OPERATION_MAX_OBJECT_COUNT 10000
+#define PEGASUS_PULL_OPERATION_MAX_OBJECT_COUNT_STRING "10000"
 
+//
+// Constants that are NOT part of runtime configuration
+//
+// Maximum time server will wait in seconds after receiving a pull before
+// returning zero objects response. This should be significantly less that
+// the client timeout to assure that some response gets back to client
+// before client times out.
+#define PEGASUS_PULL_MAX_OPERATION_WAIT_SEC 9
+// Number of times dispatcher will send the zero length keep alive
+// response (because providers not responding) before it concludes
+// there was an error and tries to send msg to provider manager to clean up
+#define PEGASUS_MAX_CONSECUTIVE_WAITS_BEFORE_ERR 6
 
+// Number of times dispatcher will send the zero length keep alive
+// response (because providers not responding) before it concludes
+// there was an error and closes the enumerationContext
+// This should be greater than PEGASUS_MAX_CONSECUTIVE_WAITS_BEFORE_ERR
+// to allow an attempt at cleanup before the enumeration is failed.
+#define PEGASUS_MAX_CONSECUTIVE_WAITS_BEFORE_FAIL 16
 /*
  * Wbem service names
  */
@@ -514,7 +582,7 @@ enum SnmpVersion {SNMPV1_TRAP = 2, SNMPV2C_TRAP = 3, SNMPV2C_INFORM = 4,
 /**
    Values for the AlertCause property of the PG_ProviderModuleInstAlert
    class, as defined in the PG Events MOF
- 
+
  */
 enum PMInstAlertCause {PM_UNKNOWN = 1, PM_OTHER = 2, PM_CREATED = 3,
     PM_DELETED = 4, PM_ENABLED = 5, PM_DISABLED = 6, PM_DEGRADED = 7,
@@ -522,7 +590,7 @@ enum PMInstAlertCause {PM_UNKNOWN = 1, PM_OTHER = 2, PM_CREATED = 3,
     PM_PROVIDER_ADDED = 11, PM_PROVIDER_REMOVED = 12,
     PM_ENABLED_CIMSERVER_START = 13, PM_DISABLED_CIMSERVER_STOP = 14};
 
-/* Values for Delivery mode property of CIM_ListenerDestinationWSManagement 
+/* Values for Delivery mode property of CIM_ListenerDestinationWSManagement
     class , as defined in CIM_ListenerDestinationWSManagement.mof */
 
 enum deliveryMode {Push = 2 ,PushWithAck = 3, Events = 4 ,Pull = 5,
@@ -554,10 +622,11 @@ PEGASUS_COMMON_LINKAGE
     extern const CIMName PEGASUS_CLASSNAME_INDHANDLER_CIMXML;
 PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_CLASSNAME_LSTNRDST_CIMXML;
 PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_CLASSNAME_INDHANDLER_SNMP;
-PEGASUS_COMMON_LINKAGE 
+PEGASUS_COMMON_LINKAGE
     extern const CIMName PEGASUS_CLASSNAME_INDHANDLER_WSMAN;
 PEGASUS_COMMON_LINKAGE
     extern const CIMName PEGASUS_CLASSNAME_LSTNRDST_SYSTEM_LOG;
+PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_CLASSNAME_LSTNRDST_FILE;
 PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_CLASSNAME_LSTNRDST_EMAIL;
 PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_CLASSNAME_INDFILTER;
 PEGASUS_COMMON_LINKAGE
@@ -703,6 +772,12 @@ PEGASUS_COMMON_LINKAGE
     extern const CIMName PEGASUS_PROPERTYNAME_WSM_DELIVERY_MODE;
 
 /**
+    Property names for File Indication Handler subclass.
+*/
+PEGASUS_COMMON_LINKAGE
+    extern const CIMName PEGASUS_PROPERTYNAME_LSTNRDST_FILE;
+
+/**
     The name of the CreationTime property for CIM XML Indication Handler
     subclass.
 */
@@ -777,6 +852,13 @@ PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_PROPERTYNAME_QUERYLANGUAGE;
     classes
  */
 PEGASUS_COMMON_LINKAGE extern const CIMName PEGASUS_PROPERTYNAME_NAME;
+
+/**
+    The name of the SubscriptionRemovalTimeInterval property of
+    IndicationService class.
+*/
+PEGASUS_COMMON_LINKAGE extern const
+    CIMName _PROPERTY_SUBSCRIPTIONREMOVALTIMEINTERVAL;
 
 /**
     The name of the Creation Class Name property for indication filter and

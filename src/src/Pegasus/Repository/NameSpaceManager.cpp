@@ -76,6 +76,9 @@ public:
         Boolean shareable_,
         Boolean updatesAllowed_);
 
+    void modifyName(
+        const CIMNamespaceName& newNameSpaceName);
+
     ~NameSpace();
 
     Boolean readOnly() { return !updatesAllowed; }
@@ -97,7 +100,6 @@ private:
         contained in the specified namespace.
     */
     void _buildInheritanceTree(
-        const CIMNamespaceName& nameSpace,
         Array<Pair<String, String> > classList,
         InheritanceTree* parentTree = NULL);
 
@@ -131,16 +133,13 @@ NameSpace::NameSpace(
 
     if (!parent)
     {
-        _buildInheritanceTree(nameSpaceName, classList);
+        _buildInheritanceTree(classList);
     }
     else
     {
         if (updatesAllowed)
         {
-            _buildInheritanceTree(
-                nameSpaceName,
-                classList,
-                &parent->_inheritanceTree);
+            _buildInheritanceTree(classList, &parent->_inheritanceTree);
         }
 
         NameSpace* ens = parent->primaryParent();
@@ -171,6 +170,16 @@ void NameSpace::modify(
 
     updatesAllowed = updatesAllowed_;
     shareable = shareable_;
+
+    PEG_METHOD_EXIT();
+}
+
+void NameSpace::modifyName(
+    const CIMNamespaceName& newNameSpaceName)
+{
+    PEG_METHOD_ENTER(TRC_REPOSITORY, "NameSpace::modifyName()");
+
+    _nameSpaceName = newNameSpaceName;
 
     PEG_METHOD_EXIT();
 }
@@ -209,7 +218,6 @@ void NameSpace::print(PEGASUS_STD(ostream)& os) const
 }
 
 void NameSpace::_buildInheritanceTree(
-    const CIMNamespaceName& nameSpace,
     Array<Pair<String, String> > classList,
     InheritanceTree* parentTree)
 {
@@ -372,6 +380,23 @@ void NameSpaceManager::modifyNameSpace(
     PEG_METHOD_EXIT();
 }
 
+void NameSpaceManager::modifyNameSpaceName(
+        const CIMNamespaceName& nameSpaceName,
+        const CIMNamespaceName& newNameSpaceName)
+{
+    PEG_METHOD_ENTER(TRC_REPOSITORY, "NameSpaceManager::modifyNameSpaceName()");
+
+    NameSpace* nameSpace = _getNameSpace(nameSpaceName);
+
+    PEGASUS_FCT_EXECUTE_AND_ASSERT(
+        true,
+        _rep->table.remove(nameSpaceName.getString()));
+    nameSpace->modifyName(newNameSpaceName);
+    _rep->table.insert(newNameSpaceName.getString(), nameSpace);
+
+    PEG_METHOD_EXIT();
+}
+
 void NameSpaceManager::deleteNameSpace(const CIMNamespaceName& nameSpaceName)
 {
     PEG_METHOD_ENTER(TRC_REPOSITORY, "NameSpaceManager::deleteNameSpace()");
@@ -394,8 +419,9 @@ void NameSpaceManager::deleteNameSpace(const CIMNamespaceName& nameSpaceName)
         }
     }
 
-    Boolean success = _rep->table.remove(nameSpaceName.getString());
-    PEGASUS_ASSERT(success);
+    PEGASUS_FCT_EXECUTE_AND_ASSERT(
+        true,
+        _rep->table.remove(nameSpaceName.getString()));
     delete nameSpace;
 
     PEG_METHOD_EXIT();
@@ -453,7 +479,7 @@ void NameSpaceManager::validateNameSpace(
     const CIMNamespaceName& nameSpaceName) const
 {
     // Throws CIM_ERR_INVALID_NAMESPACE if the namespace does not exist.
-    NameSpace* nameSpace = _getNameSpace(nameSpaceName);
+    _getNameSpace(nameSpaceName);
 }
 
 Array<CIMNamespaceName> NameSpaceManager::getDependentSchemaNameSpaceNames(
@@ -624,12 +650,11 @@ void NameSpaceManager::checkDeleteClass(
     PEG_METHOD_EXIT();
 }
 
-void NameSpaceManager::checkSetOrDeleteQualifier(
-    const CIMNamespaceName& nameSpaceName,
-    const CIMName& qualifierName) const
+void NameSpaceManager::checkNameSpaceUpdateAllowed(
+    const CIMNamespaceName& nameSpaceName) const
 {
     PEG_METHOD_ENTER(TRC_REPOSITORY,
-        "NameSpaceManager::checkSetOrDeleteQualifier");
+        "NameSpaceManager::checkNameSpaceUpdateAllowed");
 
     NameSpace* nameSpace = _getNameSpace(nameSpaceName);
 

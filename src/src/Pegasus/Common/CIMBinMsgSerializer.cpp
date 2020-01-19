@@ -32,6 +32,7 @@
 #include <Pegasus/Common/OperationContextInternal.h>
 #include "CIMBinMsgSerializer.h"
 #include "CIMInternalXmlEncoder.h"
+#include <Pegasus/Common/Tracer.h>
 
 PEGASUS_NAMESPACE_BEGIN
 
@@ -39,8 +40,23 @@ void CIMBinMsgSerializer::serialize(
     CIMBuffer& out,
     CIMMessage* cimMessage)
 {
+    PEG_METHOD_ENTER(TRC_DISPATCHER, "CIMBinMsgSerializer::serialize");
+
     if (cimMessage == 0)
         return;
+
+    PEGASUS_DEBUG_ASSERT(cimMessage->valid());
+
+    PEG_TRACE((TRC_DISPATCHER,  Tracer::LEVEL4,
+        "Serialize MessageId=%s type=%s binaryReq=%s"
+                       " binaryResp=%s iscomplete=%s internal=%s",
+        (const char*)cimMessage->messageId.getCString(),
+        MessageTypeToString(cimMessage->getType()),
+        boolToString(cimMessage->binaryRequest),
+        boolToString(cimMessage->binaryResponse),
+        boolToString(cimMessage->isComplete()),
+        boolToString(cimMessage->internalOperation)
+        ));
 
     // [messageId]
     out.putString(cimMessage->messageId);
@@ -50,6 +66,9 @@ void CIMBinMsgSerializer::serialize(
 
     // [binaryResponse]
     out.putBoolean(cimMessage->binaryResponse);
+
+    // [internalOperation]
+    out.putBoolean(cimMessage->internalOperation);
 
     // [type]
     out.putUint32(Uint32(cimMessage->getType()));
@@ -94,6 +113,8 @@ void CIMBinMsgSerializer::serialize(
     }
     else
         out.putPresent(false);
+
+    PEG_METHOD_EXIT();
 }
 
 void CIMBinMsgSerializer::_putRequestMessage(
@@ -187,7 +208,7 @@ void CIMBinMsgSerializer::_putRequestMessage(
                 break;
 
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
         }
     }
     else
@@ -221,7 +242,7 @@ void CIMBinMsgSerializer::_putRequestMessage(
                     out, (CIMDeleteSubscriptionRequestMessage*)msg);
                 break;
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
         }
     }
     else
@@ -278,7 +299,7 @@ void CIMBinMsgSerializer::_putRequestMessage(
             break;
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
         }
     }
     else
@@ -400,7 +421,7 @@ void CIMBinMsgSerializer::_putResponseMessage(
             break;
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
     }
 }
 
@@ -602,6 +623,21 @@ void CIMBinMsgSerializer::_serializeOperationContext(
     }
     else
         out.putPresent(false);
+
+    // [UserRoleContainer]
+
+    if (operationContext.contains(UserRoleContainer::NAME))
+    {
+        out.putPresent(true);
+
+        const UserRoleContainer container =
+            operationContext.get(UserRoleContainer::NAME);
+
+        out.putString(container.getUserRole());
+    }
+    else
+        out.putPresent(false);
+
 }
 
 void CIMBinMsgSerializer::_serializeContentLanguageList(
@@ -924,7 +960,7 @@ void CIMBinMsgSerializer::_putProvAgtGetScmoClassRequestMessage(
 {
     out.putString(msg->messageId);
     out.putNamespaceName(msg->nameSpace);
-    out.putName(msg->className);    
+    out.putName(msg->className);
 }
 
 void CIMBinMsgSerializer::_putStopAllProvidersRequestMessage(
@@ -1015,7 +1051,8 @@ void CIMBinMsgSerializer::_putAssociatorsResponseMessage(
     }
     else
     {
-        msg->getResponseData().encodeInternalXmlResponse(out);
+        msg->getResponseData().encodeInternalXmlResponse(out,
+            msg->internalOperation);
     }
 }
 
@@ -1042,7 +1079,8 @@ void CIMBinMsgSerializer::_putReferencesResponseMessage(
     }
     else
     {
-        msg->getResponseData().encodeInternalXmlResponse(out);
+        msg->getResponseData().encodeInternalXmlResponse(out,
+            msg->internalOperation);
     }
 }
 

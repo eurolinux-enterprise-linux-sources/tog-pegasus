@@ -35,13 +35,22 @@ TEST_DIRS = \
 	InstanceQueryProvider \
 	MethodProvider \
 	IndicationProvider \
-	SNMPIndicationProvider \
 	AssociationProvider \
 	AssociationProvider/testclient
 
 ifeq ($(PEGASUS_ENABLE_CMPI_PROVIDER_MANAGER), true)
     TEST_DIRS += \
 	CMPI
+endif
+
+ifeq ($(PEGASUS_USE_EMANATE), true)
+    TEST_DIRS += \
+	SNMPIndicationProvider
+endif
+
+ifeq ($(PEGASUS_USE_NET_SNMP), true)
+    TEST_DIRS += \
+	SNMPIndicationProvider
 endif
 
 include $(ROOT)/mak/recurse.mak

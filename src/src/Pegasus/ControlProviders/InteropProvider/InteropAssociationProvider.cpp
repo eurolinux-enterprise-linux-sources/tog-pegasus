@@ -47,10 +47,12 @@
 //  use we added a number of traces to help diagnostics.
 ///////////////////////////////////////////////////////////////////////////////
 
+
 #include "InteropProvider.h"
 #include "InteropProviderUtils.h"
 #include "InteropConstants.h"
 #include <Pegasus/Common/ArrayIterator.h>
+#include <Pegasus/Common/Pegasus_inl.h>
 
 PEGASUS_USING_STD;
 PEGASUS_NAMESPACE_BEGIN
@@ -87,7 +89,7 @@ void InteropProvider::associators(
         (const char *)resultRole.getCString(),
                       boolToString(includeQualifiers),
                       boolToString(includeClassOrigin),
-        (const char *)propertyListToString(propertyList).getCString()));
+        (const char *)propertyList.toString().getCString()));
 
     handler.processing();
     String originRole = role;
@@ -120,7 +122,7 @@ void InteropProvider::associators(
 
         if( refs.size() )
         {
-            Array<CIMInstance> refObjs = 
+            Array<CIMInstance> refObjs =
                 getReferencedInstances(refs,targetRole,context,propertyList);
             ConstArrayIterator<CIMInstance> refsIterator(refObjs);
             for(Uint32 i = 0; i < refsIterator.size(); i++)
@@ -241,7 +243,7 @@ void InteropProvider::references(
         (const char *)role.getCString(),
                       boolToString(includeQualifiers),
                       boolToString(includeClassOrigin),
-        (const char *)propertyListToString(propertyList).getCString()));
+        (const char *)propertyList.toString().getCString()));
 
     handler.processing();
     String tmpRole = role;

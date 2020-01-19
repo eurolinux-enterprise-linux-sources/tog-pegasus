@@ -147,13 +147,17 @@ void XmlWriter::appendInstanceNameElement(
     const Array<CIMKeyBinding>& keyBindings = instanceName.getKeyBindings();
     for (Uint32 i = 0, n = keyBindings.size(); i < n; i++)
     {
+        // Append KEYBINDING ELEMENT
+        // <!ELEMENT KEYBINDING (KEYVALUE|VALUE.REFERENCE)>
+        //   <!ATTLIST KEYBINDING
         out << STRLIT("<KEYBINDING NAME=\"");
         out << keyBindings[i].getName() << STRLIT("\">\n");
 
         if (keyBindings[i].getType() == CIMKeyBinding::REFERENCE)
         {
             CIMObjectPath ref = keyBindings[i].getValue();
-            appendValueReferenceElement(out, ref, true);
+            // isClassPath = false
+            appendValueReferenceElement(out, ref, false);
         }
         else
         {
@@ -161,7 +165,7 @@ void XmlWriter::appendInstanceNameElement(
             out << keyBindingTypeToString(keyBindings[i].getType());
             out << STRLIT("\">");
 
-            // fixed the special character problem - Markus
+            // fixed the special characters
 
             appendSpecial(out, keyBindings[i].getValue());
             out << STRLIT("</KEYVALUE>\n");
@@ -256,6 +260,8 @@ void XmlWriter::appendLocalInstancePathElement(
 //
 //------------------------------------------------------------------------------
 
+// appendValueReferenceElement does this correctly with isClassPath flag
+// Called only but formatSimple
 void XmlWriter::appendLocalObjectPathElement(
     Buffer& out,
     const CIMObjectPath& objectPath)
@@ -265,6 +271,7 @@ void XmlWriter::appendLocalObjectPathElement(
     //  distinguish instanceNames from classNames in every case
     //  The instanceName of a singleton instance of a keyless class has no
     //  key bindings
+    //  See bBUG_3302.
     //
     if (objectPath.getKeyBindings ().size () != 0)
     {
@@ -356,7 +363,8 @@ inline void _xmlWritter_appendValue(Buffer& out, const CIMDateTime& x)
 
 inline void _xmlWritter_appendValue(Buffer& out, const CIMObjectPath& x)
 {
-    XmlWriter::appendValueReferenceElement(out, x, true);
+    // Emit Instance Path with VALUE.REFERENCE wrapper element
+    XmlWriter::appendValueReferenceElement(out, x, false);
 }
 
 inline void _xmlWritter_appendValue(Buffer& out, const CIMObject& x)
@@ -552,7 +560,7 @@ void XmlWriter::appendValueElement(
                 break;
             }
             default:
-                PEGASUS_ASSERT(false);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
         }
     }
     else if (value.getType() == CIMTYPE_REFERENCE)
@@ -695,7 +703,7 @@ void XmlWriter::appendValueElement(
                 break;
             }
             default:
-                PEGASUS_ASSERT(false);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
         }
 
         out << STRLIT("</VALUE>\n");
@@ -725,11 +733,14 @@ void XmlWriter::appendValueObjectWithPathElement(
     const CIMObject& objectWithPath,
     Boolean includeQualifiers,
     Boolean includeClassOrigin,
+    Boolean isClassObject,
     const CIMPropertyList& propertyList)
 {
     out << STRLIT("<VALUE.OBJECTWITHPATH>\n");
 
-    appendValueReferenceElement(out, objectWithPath.getPath (), false);
+    appendClassOrInstancePathElement(out, objectWithPath.getPath (),
+        isClassObject);
+
     appendObjectElement(
         out,
         objectWithPath,
@@ -740,6 +751,43 @@ void XmlWriter::appendValueObjectWithPathElement(
     out << STRLIT("</VALUE.OBJECTWITHPATH>\n");
 }
 
+// Append INSTANCEPATH | LOCALINSTANCEPATH | INSTANCENAME
+void XmlWriter::appendInstancePath(
+    Buffer& out,
+    const CIMObjectPath& reference)
+{
+    if (reference.getHost().size())
+    {
+        appendInstancePathElement(out, reference);
+    }
+    else if (!reference.getNameSpace().isNull())
+    {
+        appendLocalInstancePathElement(out, reference);
+    }
+    else
+    {
+        appendInstanceNameElement(out, reference);
+    }
+}
+
+// appends CLASSPATH | LOCALCLASSPATH | CLASSNAME
+void XmlWriter::appendClassPath(
+    Buffer& out,
+    const CIMObjectPath& reference)
+{
+    if (reference.getHost().size())
+    {
+        appendClassPathElement(out, reference);
+    }
+    else if (!reference.getNameSpace().isNull())
+    {
+        appendLocalClassPathElement(out, reference);
+    }
+    else
+    {
+        appendClassNameElement(out, reference.getClassName());
+    }
+}
 //------------------------------------------------------------------------------
 //
 // appendValueReferenceElement()
@@ -749,67 +797,48 @@ void XmlWriter::appendValueObjectWithPathElement(
 //         INSTANCENAME)>
 //
 //------------------------------------------------------------------------------
-
+// Builds either a classPath or InstancePath based on isClassPath
+// parameter which was carried forward from, for example, the
+// request. The caller must define if this is a class or instance path
 void XmlWriter::appendValueReferenceElement(
     Buffer& out,
     const CIMObjectPath& reference,
-    Boolean putValueWrapper)
+    Boolean isClassPath)
 {
-    if (putValueWrapper)
-        out << STRLIT("<VALUE.REFERENCE>\n");
+    out << STRLIT("<VALUE.REFERENCE>\n");
 
-    // See if it is a class or instance reference (instance references have
-    // key-bindings; class references do not).
-    //
-    //  ATTN-CAKG-P2-20020726:  The following condition does not correctly
-    //  distinguish instanceNames from classNames in every case
-    //  The instanceName of a singleton instance of a keyless class has no
-    //  key bindings
-    //
+    appendClassOrInstancePathElement(out, reference, isClassPath);
 
-    const Array<CIMKeyBinding>& kbs = reference.getKeyBindings();
+    out << STRLIT("</VALUE.REFERENCE>\n");
+}
 
-    if (kbs.size())
+
+// Append either the classPathElement or InstancePathElement depending on
+// the isClassPath input argument.
+//  INSTANCENAME | CLASSNAME
+
+void XmlWriter::appendClassOrInstancePathElement(
+    Buffer& out,
+    const CIMObjectPath& reference,
+    Boolean isClassPath)
+{
+    if (isClassPath)
     {
-        if (reference.getHost().size())
-        {
-            appendInstancePathElement(out, reference);
-        }
-        else if (!reference.getNameSpace().isNull())
-        {
-            appendLocalInstancePathElement(out, reference);
-        }
-        else
-        {
-            appendInstanceNameElement(out, reference);
-        }
+        appendClassPath(out,reference);
     }
     else
     {
-        if (reference.getHost().size())
-        {
-            appendClassPathElement(out, reference);
-        }
-        else if (!reference.getNameSpace().isNull())
-        {
-            appendLocalClassPathElement(out, reference);
-        }
-        else
-        {
-            appendClassNameElement(out, reference.getClassName());
-        }
+        appendInstancePath(out,reference);
     }
-
-    if (putValueWrapper)
-        out << STRLIT("</VALUE.REFERENCE>\n");
 }
 
 void XmlWriter::printValueReferenceElement(
     const CIMObjectPath& reference,
+    Boolean isClassPath,
     PEGASUS_STD(ostream)& os)
 {
     Buffer tmp;
-    appendValueReferenceElement(tmp, reference, true);
+    appendValueReferenceElement(tmp, reference, isClassPath);
     indentedPrint(os, tmp.getData());
 }
 
@@ -841,6 +870,35 @@ void XmlWriter::appendValueNamedInstanceElement(
     out << STRLIT("</VALUE.NAMEDINSTANCE>\n");
 }
 
+//EXP_PULL_BEGIN
+//------------------------------------------------------------------------------
+//
+// appendValueInstanceWithPathElement()
+//
+//     <!ELEMENT VALUE.INSTANCEWITHPATH (INSTANCEPATH,INSTANCE)>
+//
+//------------------------------------------------------------------------------
+//
+void XmlWriter::appendValueInstanceWithPathElement(
+    Buffer& out,
+    const CIMInstance& namedInstance,
+        Boolean includeQualifiers,
+        Boolean includeClassOrigin,
+        const CIMPropertyList& propertyList)
+{
+    out << STRLIT("<VALUE.INSTANCEWITHPATH>\n");
+
+    appendInstancePathElement(out, namedInstance.getPath ());
+    appendInstanceElement(
+        out,
+        namedInstance,
+        includeQualifiers,
+        includeClassOrigin,
+        propertyList);
+
+    out << STRLIT("</VALUE.INSTANCEWITHPATH>\n");
+}
+//EXP_PULL_END
 //------------------------------------------------------------------------------
 //
 // appendClassElement()
@@ -938,7 +996,7 @@ void XmlWriter::appendInstanceElement(
             XmlWriter::appendQualifierElement(out, rep->getQualifier(i));
     }
     if(propertyList.isNull())
-    { 
+    {
         for (Uint32 i = 0, n = rep->getPropertyCount(); i < n; i++)
         {
             XmlWriter::appendPropertyElement(
@@ -1124,7 +1182,7 @@ void XmlWriter::appendPropertyElement(
                 // Note that if the macro PEGASUS_SNIA_INTEROP_COMPATIBILITY is
                 // defined, then the EmbeddedInstance qualifier will be added
 # ifdef PEGASUS_SNIA_INTEROP_COMPATIBILITY
-                if (rep->findQualifier(PEGASUS_QUALIFIERNAME_EMBEDDEDINSTANCE) 
+                if (rep->findQualifier(PEGASUS_QUALIFIERNAME_EMBEDDEDINSTANCE)
                         == PEG_NOT_FOUND)
                 {
                     // Note that addQualifiers() cannot be called on a const
@@ -1201,7 +1259,7 @@ void XmlWriter::appendPropertyElement(
 
         out << STRLIT(">\n");
         if(includeQualifiers)
-        {  
+        {
             for (Uint32 i = 0, n = rep->getQualifierCount(); i < n; i++)
                 XmlWriter::appendQualifierElement(out, rep->getQualifier(i));
         }
@@ -1753,7 +1811,7 @@ void XmlWriter::appendMethodCallHeader(
     bool binaryRequest,
     bool binaryResponse)
 {
-    char nn[] = { '0' + (rand() % 10), '0' + (rand() % 10), '\0' };
+    char nn[] = { char('0' + (rand() % 10)), char('0' + (rand() % 10)),'\0'};
 
     // ATTN: KS 20020926 - Temporary change to issue only POST. This may
     // be changed in the DMTF CIM Operations standard in the future.
@@ -1905,7 +1963,7 @@ void XmlWriter::appendMethodResponseHeader(
      }
      if (httpMethod == HTTP_METHOD_M_POST)
      {
-         char nn[] = { '0' + (rand() % 10), '0' + (rand() % 10), '\0' };
+         char nn[] = {char('0'+(rand() % 10)),char('0' + (rand() % 10)),'\0'};
 
          out << STRLIT("Ext:\r\n"
                        "Cache-Control: no-cache\r\n"
@@ -1962,6 +2020,7 @@ void XmlWriter::appendHttpErrorResponseHeader(
 //     Returns unauthorized message in the following format:
 //
 //        HTTP/1.1 401 Unauthorized
+//        PGErrorDetail: <error text>    (if specified by caller)
 //        WWW-Authenticate: Basic realm="HostName"
 //        <HTML><HEAD>
 //        <TITLE>401 Unauthorized</TITLE>
@@ -1974,9 +2033,16 @@ void XmlWriter::appendHttpErrorResponseHeader(
 
 void XmlWriter::appendUnauthorizedResponseHeader(
     Buffer& out,
+    const String& errorDetail,
     const String& content)
 {
     out << STRLIT("HTTP/1.1 " HTTP_STATUS_UNAUTHORIZED "\r\n");
+    if (errorDetail.size() > 0)
+    {
+        out << STRLIT(PEGASUS_HTTPHEADERTAG_ERRORDETAIL ": ")
+            << encodeURICharacters(errorDetail) << STRLIT("\r\n");
+    }
+
     OUTPUT_CONTENTLENGTH(out, 0);
     out << content << STRLIT("\r\n\r\n");
 
@@ -1990,49 +2056,6 @@ void XmlWriter::appendUnauthorizedResponseHeader(
 //    out << "</BODY></HTML>\r\n";
 }
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-//------------------------------------------------------------------------------
-//
-// appendOKResponseHeader()
-//
-//     Build HTTP authentication response header for unauthorized requests.
-//
-//     Returns OK message in the following format:
-//
-//        HTTP/1.1 200 OK
-//        Content-Length: 0
-//        WWW-Authenticate: Negotiate "token"
-//        <HTML><HEAD>
-//        <TITLE>200 OK</TITLE>
-//        </HEAD><BODY BGCOLOR="#99cc99">
-//        <H2>TEST200 OK</H2>
-//        <HR>
-//        </BODY></HTML>
-//
-//------------------------------------------------------------------------------
-
-void XmlWriter::appendOKResponseHeader(
-    Buffer& out,
-    const String& content)
-{
-    out << STRLIT("HTTP/1.1 " HTTP_STATUS_OK "\r\n");
-    // Content-Length header needs to be added because 200 OK record
-    // is usually intended to have content.  But, for Kerberos this
-    // may not always be the case so we need to indicate that there
-    // is no content
-    OUTPUT_CONTENTLENGTH(out, 0);
-    out << content << STRLIT("\r\n\r\n");
-
-//ATTN: We may need to include the following line, so that the browsers
-//      can display the error message.
-//    out << "<HTML><HEAD>\r\n";
-//    out << "<TITLE>" << "200 OK" <<  "</TITLE>\r\n";
-//    out << "</HEAD><BODY BGCOLOR=\"#99cc99\">\r\n";
-//    out << "<H2>TEST" << "200 OK" << "</H2>\r\n";
-//    out << "<HR>\r\n";
-//    out << "</BODY></HTML>\r\n";
-}
-#endif
 
 //------------------------------------------------------------------------------
 //
@@ -2153,6 +2176,33 @@ void XmlWriter::_appendIParamValueElementEnd(
 {
     out << STRLIT("</IPARAMVALUE>\n");
 }
+
+//EXP_PULL_BEGIN
+//------------------------------------------------------------------------------
+//
+// _appendParamValueElementBegin()
+// _appendParamValueElementEnd()
+//
+//     <!ELEMENT IPARAMVALUE (VALUE|VALUE.ARRAY|VALUE.REFERENCE
+//         |INSTANCENAME|CLASSNAME|QUALIFIER.DECLARATION
+//         |CLASS|INSTANCE|VALUE.NAMEDINSTANCE)?>
+//     <!ATTLIST IPARAMVALUE %CIMName;>
+//
+//------------------------------------------------------------------------------
+
+void XmlWriter::_appendParamValueElementBegin(
+    Buffer& out,
+    const char* name)
+{
+    out << STRLIT("<PARAMVALUE NAME=\"") << name << STRLIT("\">\n");
+}
+
+void XmlWriter::_appendParamValueElementEnd(
+    Buffer& out)
+{
+    out << STRLIT("</PARAMVALUE>\n");
+}
+//EXP_PULL_END
 
 //------------------------------------------------------------------------------
 //
@@ -2355,6 +2405,15 @@ void XmlWriter::_appendIReturnValueElementEnd(
     out << STRLIT("</IRETURNVALUE>\n");
 }
 
+//EXP_PULL_BEGIN
+void XmlWriter::_appendIReturnValueElementWithNameBegin(
+    Buffer& out,
+    const char* name)
+{
+    out << STRLIT("<IRETURNVALUE NAME=\"") << name << STRLIT("\">\n");
+}
+//EXP_PULL_END
+
 //------------------------------------------------------------------------------
 //
 // appendBooleanIParameter()
@@ -2372,6 +2431,88 @@ void XmlWriter::appendBooleanIParameter(
     out << STRLIT("</VALUE>\n");
     _appendIParamValueElementEnd(out);
 }
+
+//EXP_PULL_BEGIN
+void XmlWriter::appendBooleanParameter(
+    Buffer& out,
+    const char* name,
+    Boolean flag)
+{
+    _appendParamValueElementBegin(out, name);
+    out << STRLIT("<VALUE>");
+    append(out, flag);
+    out << STRLIT("</VALUE>\n");
+    _appendParamValueElementEnd(out);
+}
+
+void XmlWriter::appendBooleanIReturnValue(
+    Buffer& out,
+    const char* name,
+    Boolean flag)
+{
+    _appendIReturnValueElementWithNameBegin(out, name);
+    out << STRLIT("<VALUE>");
+    append(out, flag);
+    out << STRLIT("</VALUE>\n");
+    _appendIReturnValueElementEnd(out);
+}
+void XmlWriter::appendUint32IParameter(
+    Buffer& out,
+    const char* name,
+    Uint32 val)
+{
+    _appendIParamValueElementBegin(out, name);
+    out << STRLIT("<VALUE>");
+    append(out, val);
+    out << STRLIT("</VALUE>\n");
+    _appendIParamValueElementEnd(out);
+}
+
+// Can be used to generate either parameters with value,
+// parameters with NULL (i.e. no value element) or
+// no parameters output at all.
+void XmlWriter::appendUint32ArgIParameter(
+    Buffer& out,
+    const char* name,
+    const Uint32Arg& val,
+    const Boolean required)
+{
+    if (!required && val.isNull())
+    {
+        return;
+    }
+
+    _appendIParamValueElementBegin(out, name);
+    if (!val.isNull())
+    {
+        out << STRLIT("<VALUE>");
+        append(out, val.getValue());
+        out << STRLIT("</VALUE>\n");
+    }
+    _appendIParamValueElementEnd(out);
+}
+
+/* Output return value from Uint64Arg object as
+   Value inside IRETURNVALUE
+   If the state of the object is NULL output
+   the parameter without value.  Else
+   output the value
+*/
+void XmlWriter::appendUint64ReturnValue(
+    Buffer& out,
+    const char* name,
+    const Uint64Arg& val)
+{
+    _appendIReturnValueElementBegin(out);
+    out << STRLIT("<VALUE>");
+    if (!val.isNull())
+    {
+        append(out, val.getValue());
+    }
+    out << STRLIT("</VALUE>\n");
+    _appendIReturnValueElementEnd(out);
+}
+//EXP_PULL_END
 
 //------------------------------------------------------------------------------
 //
@@ -2391,6 +2532,60 @@ void XmlWriter::appendStringIParameter(
     _appendIParamValueElementEnd(out);
 }
 
+// EXP_PULL_BEGIN
+//------------------------------------------------------------------------------
+//
+// appendStringIParameterIfNotEmpty()
+//
+//------------------------------------------------------------------------------
+
+void XmlWriter::appendStringIParameterIfNotEmpty(
+    Buffer& out,
+    const char* name,
+    const String& str)
+{
+    if (str != String::EMPTY)
+    {
+        appendStringIParameter(out,name,str);
+    }
+}
+
+//------------------------------------------------------------------------------
+//
+// appendStringParameter()
+//
+//------------------------------------------------------------------------------
+
+void XmlWriter::appendStringParameter(
+    Buffer& out,
+    const char* name,
+    const String& str)
+{
+    _appendParamValueElementBegin(out, name);
+    out << STRLIT("<VALUE>");
+    appendSpecial(out, str);
+    out << STRLIT("</VALUE>\n");
+    _appendParamValueElementEnd(out);
+}
+
+//------------------------------------------------------------------------------
+//
+// appendStringIReturnValue()
+//
+//------------------------------------------------------------------------------
+
+void XmlWriter::appendStringIReturnValue(
+    Buffer& out,
+    const char* name,
+    const String& str)
+{
+    _appendIReturnValueElementWithNameBegin(out, name);
+    out << STRLIT("<VALUE>");
+    appendSpecial(out, str);
+    out << STRLIT("</VALUE>\n");
+    _appendIReturnValueElementEnd(out);
+}
+//EXP_PULL_END
 //------------------------------------------------------------------------------
 //
 // appendClassNameIParameter()
@@ -2430,29 +2625,6 @@ void XmlWriter::appendInstanceNameIParameter(
     _appendIParamValueElementBegin(out, name);
     appendInstanceNameElement(out, instanceName);
     _appendIParamValueElementEnd(out);
-}
-
-void XmlWriter::appendObjectNameIParameter(
-    Buffer& out,
-    const char* name,
-    const CIMObjectPath& objectName)
-{
-    //
-    //  ATTN-CAKG-P2-20020726:  The following condition does not correctly
-    //  distinguish instanceNames from classNames in every case
-    //  The instanceName of a singleton instance of a keyless class also
-    //  has no key bindings
-    //
-    if (objectName.getKeyBindings ().size () == 0)
-    {
-        XmlWriter::appendClassNameIParameter(
-            out, name, objectName.getClassName());
-    }
-    else
-    {
-        XmlWriter::appendInstanceNameIParameter(
-            out, name, objectName);
-    }
 }
 
 //------------------------------------------------------------------------------
@@ -2662,6 +2834,7 @@ Buffer XmlWriter::formatSimpleMethodRspMessage(
     const String& messageId,
     HttpMethod httpMethod,
     const ContentLanguageList& httpContentLanguages,
+    const Buffer& bodyParams,
     const Buffer& body,
     Uint64 serverResponseTime,
     Boolean isFirst,
@@ -2783,11 +2956,23 @@ Buffer XmlWriter::formatSimpleIMethodReqMessage(
 //
 //------------------------------------------------------------------------------
 
+/*
+    Formats a IMethod Response Message.  This function formats
+    messages for chunking based on the isFirst and isLast parameters.
+    If isFirst is set, it outputs headers and ResponseElement begin.
+    It always sends the body.  If isLast is set,  it sends the rtnParams
+    and the ResponseElement end followed by any parameter in the rtnParams.
+    KS_PULL_TBD_TODO - Determine what we want to do with chunking. Since this
+    This whole thing is based on the concept of each message sending a  single
+    chunk and we will want in the future to modify so we can chose easily
+    whether we want to chunk or not and send the chunks.
+*/
 Buffer XmlWriter::formatSimpleIMethodRspMessage(
     const CIMName& iMethodName,
     const String& messageId,
     HttpMethod httpMethod,
     const ContentLanguageList& httpContentLanguages,
+    const Buffer& rtnParams,
     const Buffer& body,
     Uint64 serverResponseTime,
     Boolean isFirst,
@@ -2824,6 +3009,15 @@ Buffer XmlWriter::formatSimpleIMethodRspMessage(
     {
         if (body.size() != 0 || isFirst == false)
             _appendIReturnValueElementEnd(out);
+
+        // EXP_PULL_BEGIN
+        // Insert any return parameters.
+        if (rtnParams.size() != 0)
+        {
+            out << rtnParams;
+        }
+        // EXP_PULL_END
+
         _appendIMethodResponseElementEnd(out);
         _appendSimpleRspElementEnd(out);
         _appendMessageElementEnd(out);
@@ -2890,7 +3084,7 @@ void XmlWriter::appendEMethodRequestHeader(
     const ContentLanguageList& contentLanguages,
     Uint32 contentLength)
 {
-    char nn[] = { '0' + (rand() % 10), '0' + (rand() % 10), '\0' };
+    char nn[] = { char('0' + (rand() % 10)), char('0' + (rand() % 10)), '\0' };
 
     if (httpMethod == HTTP_METHOD_M_POST)
     {
@@ -2962,7 +3156,7 @@ void XmlWriter::appendEMethodResponseHeader(
     const ContentLanguageList& contentLanguages,
     Uint32 contentLength)
 {
-    char nn[] = { '0' + (rand() % 10), '0' + (rand() % 10), '\0' };
+    char nn[] = { char('0' + (rand() % 10)), char('0' + (rand() % 10)), '\0' };
 
     out << STRLIT("HTTP/1.1 " HTTP_STATUS_OK "\r\n"
                   "Content-Type: application/xml; charset=utf-8\r\n");
@@ -3262,7 +3456,7 @@ const StrLit XmlWriter::keyBindingTypeToString (CIMKeyBinding::Type type)
 
         case CIMKeyBinding::REFERENCE:
         default:
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
     }
 
     return STRLIT("unknown");

@@ -163,7 +163,6 @@ public:
     static void trace(
         LogFileType logFileType,
         const String& systemId,
-        const Uint32 logComponent,
         const String& message);
 
     /** setHomeDirectory
@@ -172,11 +171,11 @@ public:
 
     /** setlogLevelMask
     */
-    static void setlogLevelMask(const String logLevelList);
+    static void setlogLevelMask(const String &logLevelList);
 
     /** Returns true if the given string is one of the legal log levels.
     */
-    static Boolean isValidlogLevel(const String logLevel);
+    static Boolean isValidlogLevel(const String &logLevel);
 
     /** Tests if a log entry would be created by this call before
         the logger is called.  This function is intended to be used
@@ -213,7 +212,6 @@ private:
     static void _putInternal(
         LogFileType logFileType,
         const String& systemId,
-        const Uint32 logComponent,
         Uint32 logLevel,
         const String& message);
 };

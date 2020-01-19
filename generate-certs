@@ -1,11 +1,8 @@
 #!/bin/bash
 cd /etc/Pegasus
 
-if [ ! -e /etc/Pegasus/ssl-ca.cnf ] ||
-   [ ! -e /etc/Pegasus/ssl-service.cnf ] ||
-   [ ! -e /etc/Pegasus/server.pem ] ||
-   [ ! -e /etc/Pegasus/file.pem ]  ||
-   [ ! -e /etc/Pegasus/client.pem ]; then
+if [ ! -e /etc/Pegasus/ssl-ca.cnf ] || [ ! -e /etc/Pegasus/ssl-service.cnf ] || [ ! -e /etc/Pegasus/server.pem ] ||
+     [ ! -e /etc/Pegasus/file.pem ]  || [ ! -e /etc/Pegasus/client.pem ]; then
          if [ -x /usr/share/Pegasus/scripts/genOpenPegasusSSLCerts ]; then
             # Create self-signed certificates for initial usage
             /usr/share/Pegasus/scripts/genOpenPegasusSSLCerts

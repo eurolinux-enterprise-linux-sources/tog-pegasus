@@ -1097,7 +1097,7 @@ Array <CIMName> SubscriptionRepository::getIndicationSubclasses (
 }
 
 Boolean SubscriptionRepository::reconcileFatalError (
-    const CIMInstance subscription)
+    const CIMInstance &subscription)
 {
     PEG_METHOD_ENTER (TRC_INDICATION_SERVICE,
         "SubscriptionRepository::reconcileFatalError");
@@ -1191,6 +1191,8 @@ void SubscriptionRepository::modifyInstance (
         instanceName.getClassName().equal(
             PEGASUS_CLASSNAME_INDHANDLER_SNMP) ||
         instanceName.getClassName().equal(
+            PEGASUS_CLASSNAME_LSTNRDST_FILE) ||
+        instanceName.getClassName().equal(
             PEGASUS_CLASSNAME_LSTNRDST_EMAIL) ||
         instanceName.getClassName().equal(
             PEGASUS_CLASSNAME_LSTNRDST_SYSTEM_LOG) ||
@@ -1241,6 +1243,8 @@ void SubscriptionRepository::deleteInstance (
                  PEGASUS_CLASSNAME_LSTNRDST_CIMXML) ||
              instanceName.getClassName().equal(
                  PEGASUS_CLASSNAME_INDHANDLER_SNMP) ||
+             instanceName.getClassName().equal(
+                 PEGASUS_CLASSNAME_LSTNRDST_FILE) ||
              instanceName.getClassName().equal(
                  PEGASUS_CLASSNAME_LSTNRDST_EMAIL) ||
              instanceName.getClassName().equal(
@@ -1341,7 +1345,7 @@ void SubscriptionRepository::_disableSubscription (
 }
 
 void SubscriptionRepository::_deleteSubscription (
-    const CIMInstance subscription)
+    const CIMInstance &subscription)
 {
     PEG_METHOD_ENTER (TRC_INDICATION_SERVICE,
         "SubscriptionRepository::_deleteSubscription");

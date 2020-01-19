@@ -27,6 +27,11 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
+// This code implements part of PEP#348 - The CMPI infrastructure using SCMO
+// (Single Chunk Memory Objects).
+// The design document can be found on the OpenPegasus website openpegasus.org
+// at https://collaboration.opengroup.org/pegasus/pp/documents/21210/PEP_348.pdf
+//
 //%/////////////////////////////////////////////////////////////////////////////
 
 #ifndef Pegasus_SCMOStreamer_h
@@ -44,9 +49,15 @@ PEGASUS_NAMESPACE_BEGIN
 
 struct SCMOResolutionTable
 {
-    // Though we really store a pointer here, it is stored as Uint64 to
-    // become independent from 64bit versus 32bit incarnations of the struct.
-    Uint64 scmbptr;
+    // Though we only store pointers here, it is stored as union of size 64bit
+    // to become independent from 64bit versus 32bit incarnations of the struct.
+    union
+    {
+        Uint64 uint64;
+        SCMOInstance* scmoInst;
+        SCMBInstance_Main * scmbMain;
+    } scmbptr;
+
     Uint64 index;
 };
 
@@ -95,7 +106,7 @@ private:
     //
     // Returns the index position at which the instance was inserted in the
     // instance resolver table.
-    Uint32 _appendToInstResolverTable(const SCMOInstance& inst, Uint32 idx);
+    Uint32 _appendToInstResolverTable(SCMOInstance& inst, Uint32 idx);
 
 
     // Adds an instance to the class resolution table.
@@ -127,11 +138,6 @@ private:
 
     // The array of SCMOInstances to be streamed
     Array<SCMOInstance>& _scmoInstances;
-
-    // Counters for the total number of classes and scmo instances
-    // to be streamed. These counters increase during streaming process.
-    Uint32 _ttlNumInstances;
-    Uint32 _ttlNumClasses;
 
     // Index table used to resolve the absolute pointers to SCMOClasses
     // to a relative sequence number (index) in the stream

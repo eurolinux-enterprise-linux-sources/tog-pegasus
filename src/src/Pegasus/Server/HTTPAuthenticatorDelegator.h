@@ -43,6 +43,10 @@
 
 #include <Pegasus/Repository/CIMRepository.h>
 
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+#include <Pegasus/Security/Authentication/Cookies.h>
+#endif
+
 PEGASUS_NAMESPACE_BEGIN
 
 /**
@@ -82,6 +86,19 @@ public:
     {
         _wsmanOperationMessageQueueId = wsmanOperationMessageQueueId;
     }
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    void setWebQueueId(Uint32 webOperationMessageQueueId)
+    {
+        _webOperationMessageQueueId = webOperationMessageQueueId;
+    }
+#endif
+
+    void setRsQueueId(Uint32 rsOperationMessageQueueId)
+    {
+        _rsOperationMessageQueueId = rsOperationMessageQueueId;
+    }
+
+    void idleTimeCleanup();
 
 private:
 
@@ -90,15 +107,9 @@ private:
         Buffer& message,
         Boolean closeConnect);
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    void _sendSuccess(
-        Uint32 queueId,
-        const String& authResponse,
-        Boolean closeConnect);
-#endif
-
     void _sendChallenge(
         Uint32 queueId,
+        const String& errorDetail,
         const String& authResponse,
         Boolean closeConnect);
 
@@ -109,11 +120,25 @@ private:
         const String& pegasusError = String::EMPTY,
         Boolean closeConnect = false);
 
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    /**
+     * Create a cookie after successful authentication.
+     */
+    void _createCookie(HTTPMessage *httpMessage);
+#endif
+
     Uint32 _cimOperationMessageQueueId;
     Uint32 _cimExportMessageQueueId;
     Uint32 _wsmanOperationMessageQueueId;
+    Uint32 _rsOperationMessageQueueId;
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    Uint32 _webOperationMessageQueueId;
+#endif
 
     AutoPtr<AuthenticationManager> _authenticationManager;
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    AutoPtr<HTTPSessionList> _sessions;
+#endif
 
 private:
       CIMRepository* _repository;

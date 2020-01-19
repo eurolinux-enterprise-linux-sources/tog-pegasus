@@ -47,9 +47,6 @@
     {"sslClientVerificationMode",             "disabled"},
     {"sslTrustStoreUserName",                         ""},
     {"enableNamespaceAuthorization",             "false"},
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    {"kerberosServiceName",                      "cimom"},
-#endif
     {"enableSubscriptionsForNonprivilegedUsers",  "true"},
 #ifdef PEGASUS_ENABLE_USERGROUP_AUTHORIZATION
     {"authorizedUserGroups",                          ""},
@@ -58,6 +55,11 @@
 #ifdef PEGASUS_USE_RELEASE_CONFIG_OPTIONS
     {"enableAssociationTraversal",                "true"},
     {"enableBinaryRepository",                    "true"},
+#endif
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    {"webRoot",                          "/var/wbem/www"},
+    {"indexFile",                           "index.html"},
+    {"mimeTypesFile",       "/var/wbem/www/mimeType.txt"},
 #endif
     {"sslTrustStore",                  "cimserver_trust"}
 

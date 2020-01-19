@@ -79,7 +79,7 @@ public:
                 reinterpret_cast<struct sockaddr*>(new struct sockaddr_un);
             address_size = sizeof(struct sockaddr_un);
 #else
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
         }
 #ifdef PEGASUS_ENABLE_IPV6
@@ -98,7 +98,7 @@ public:
         }
         else
         {
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
     }
     }
 
@@ -215,12 +215,11 @@ void HTTPAcceptor::handleEnqueue(Message *message)
     {
         case SOCKET_MESSAGE:
         {
-            SocketMessage* socketMessage = (SocketMessage*)message;
-
             // If this is a connection request:
-            PEGASUS_ASSERT(socketMessage->socket == _rep->socket);
+            PEGASUS_ASSERT(((SocketMessage*)message)->socket == _rep->socket);
 
-            PEGASUS_ASSERT(socketMessage->events & SocketMessage::READ);
+            PEGASUS_ASSERT(
+                ((SocketMessage*)message)->events & SocketMessage::READ);
 
             _acceptConnection();
 
@@ -252,7 +251,7 @@ void HTTPAcceptor::handleEnqueue(Message *message)
        }
 
        default:
-           PEGASUS_ASSERT(false);
+           PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
            break;
     }
 
@@ -330,7 +329,7 @@ void HTTPAcceptor::_bind()
         strcpy(reinterpret_cast<struct sockaddr_un*>(_rep->address)->sun_path,
             PEGASUS_LOCAL_DOMAIN_SOCKET_PATH);
 #else
-        PEGASUS_ASSERT(false);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
     }
 #ifdef PEGASUS_ENABLE_IPV6
@@ -400,7 +399,7 @@ void HTTPAcceptor::_bind()
     }
     else
     {
-        PEGASUS_ASSERT(false);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
     }
 
     // Create socket:
@@ -421,7 +420,7 @@ void HTTPAcceptor::_bind()
     }
     else
     {
-        PEGASUS_ASSERT(false);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
     }
 
     if (_rep->socket < 0)
@@ -553,7 +552,6 @@ void HTTPAcceptor::_bind()
 
     if (-1 == ( _entry_index = _monitor->solicitSocketMessages(
             _rep->socket,
-            SocketMessage::READ | SocketMessage::EXCEPTION,
             getQueueId(),
             MonitorEntry::TYPE_ACCEPTOR)))
     {
@@ -592,7 +590,7 @@ void HTTPAcceptor::closeConnectionSocket()
                     reinterpret_cast<struct sockaddr_un*>
                         (_rep->address)->sun_path);
 #else
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
         }
     }
@@ -642,7 +640,7 @@ void HTTPAcceptor::reconnectConnectionSocket()
                     reinterpret_cast<struct sockaddr_un*>(
                         _rep->address)->sun_path);
 #else
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
         }
         // open the socket
@@ -707,7 +705,7 @@ void HTTPAcceptor::unbind()
                     reinterpret_cast<struct sockaddr_un*>
                     (_rep->address)->sun_path);
 #else
-            PEGASUS_ASSERT(false);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
         }
 
@@ -765,7 +763,7 @@ void HTTPAcceptor::_acceptConnection()
             reinterpret_cast<struct sockaddr*>(new struct sockaddr_un);
         address_size = sizeof(struct sockaddr_un);
 #else
-        PEGASUS_ASSERT(false);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(false);)
 #endif
     }
     else
@@ -953,7 +951,6 @@ void HTTPAcceptor::_acceptConnection()
 
     if (-1 ==  (index = _monitor->solicitSocketMessages(
             connection->getSocket(),
-            SocketMessage::READ | SocketMessage::EXCEPTION,
             connection->getQueueId(), MonitorEntry::TYPE_CONNECTION)) )
     {
         PEG_TRACE_CSTRING(TRC_DISCARDED_DATA, Tracer::LEVEL1,

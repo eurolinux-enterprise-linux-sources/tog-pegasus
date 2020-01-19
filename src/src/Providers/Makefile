@@ -42,7 +42,8 @@ DIRS = \
 
 ifeq ($(PEGASUS_ENABLE_SLP),true)
 DIRS += \
-    slp
+    slp \
+    slp/test
 endif
 
 include $(ROOT)/mak/recurse.mak

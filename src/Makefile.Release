@@ -81,6 +81,8 @@ PEGASUS_PROVIDER_MANAGERS =
 
 PEGASUS_LIBRARIES = \
    libCIMxmlIndicationHandler \
+   libFileListenerDestination \
+   libcimrsserver    \
    libConfigSettingProvider \
    libNamespaceProvider \
    libProviderRegistrationProvider \
@@ -88,6 +90,7 @@ PEGASUS_LIBRARIES = \
    libpegauthentication \
    libpegclient \
    libpegcliutils \
+   libpeghandler \
    libpeggeneral \
    libpegcommon \
    libpegcompiler \
@@ -119,12 +122,17 @@ ifeq ($(PEGASUS_ENABLE_CQL),true)
       libCIMQueryCapabilitiesProvider
 endif
 
+ifeq ($(PEGASUS_ENABLE_FQL),true)
+   PEGASUS_LIBRARIES += libpegfql
+endif
+
 ifeq ($(PEGASUS_ENABLE_CMPI_PROVIDER_MANAGER),true)
 PEGASUS_LIBRARIES += \
    libcmpiCppImpl
 PEGASUS_PROVIDER_MANAGERS += \
    libCMPIProviderManager
 endif
+
 
 PEGASUS_JARS =
 JAR_SUFFIX = .jar
@@ -141,7 +149,7 @@ PEGASUS_LIBRARIES += \
    libInteropProvider
 endif
 
-ifdef PEGASUS_USE_NET_SNMP
+ifeq ($(PEGASUS_USE_NET_SNMP),true)
    PEGASUS_LIBRARIES += \
       libsnmpIndicationHandler
 endif
@@ -149,6 +157,11 @@ endif
 ifeq ($(PEGASUS_ENABLE_PROTOCOL_WSMAN),true)
 PEGASUS_LIBRARIES += \
     libpegwsmserver
+endif
+
+ifeq ($(PEGASUS_ENABLE_PROTOCOL_WSMAN),true)
+PEGASUS_LIBRARIES += \
+    libpegwebserver
 endif
 
 ifeq ($(PEGASUS_ENABLE_SLP), true)
@@ -174,7 +187,7 @@ ifeq ($(PEGASUS_ENABLE_JMPI_PROVIDER_MANAGER), true)
        libJMPIProviderManager
 endif
 
-ifdef PEGASUS_USE_NET_SNMP
+ifeq ($(PEGASUS_USE_NET_SNMP),true)
 PEGASUS_LIBRARY_LINKS += \
    libsnmpIndicationHandler
 endif
@@ -214,7 +227,8 @@ PEGASUS_USER_CMDS = \
    cimprovider \
    cimsub \
    osinfo \
-   wbemexec
+   wbemexec \
+   cimcli
 
 PEGASUS_GENERATED_SCRIPTS = \
    genOpenPegasusSSLCerts
@@ -234,7 +248,8 @@ PEGASUS_UNIX_MAN_USER_PAGES = \
    cimprovider.1 \
    cimsub.1 \
    osinfo.1 \
-   wbemexec.1
+   wbemexec.1 \
+   cimcli.1
 
 PEGASUS_UNIX_MAN_ADMIN_PAGES = \
    cimauth.8 \
@@ -500,7 +515,7 @@ endif
 	@$(ECHO-E) "PEGASUS_SSL_KEY_FILE=$(PEGASUS_SSL_KEY_FILE_PATH)" >> $(PEGASUS_STAGING_DIR)/etc/init.d/$(PEGASUS_FLAVOR)-pegasus
 	@$(ECHO-E) "PEGASUS_SSL_TRUSTSTORE=$(PEGASUS_SSL_CLIENT_TRUSTSTORE)" >> $(PEGASUS_STAGING_DIR)/etc/init.d/$(PEGASUS_FLAVOR)-pegasus
 	@$(ECHO-E) "PEGASUS_FLAVOR=$(PEGASUS_FLAVOR)" >> $(PEGASUS_STAGING_DIR)/etc/init.d/$(PEGASUS_FLAVOR)-pegasus
-	$(CAT) $(ROOT)/rpm/commands-tog-pegasus.rc >> $(PEGASUS_STAGING_DIR)/etc/init.d/$(PEGASUS_FLAVOR)-pegasus
+	$(CAT) $(ROOT)/rpm/commands-tog-pegasus.rc | $(TAIL) -n+29 >> $(PEGASUS_STAGING_DIR)/etc/init.d/$(PEGASUS_FLAVOR)-pegasus
 endif
 
 setpermissions_PegasusSystemFiles: FORCE
@@ -812,7 +827,7 @@ _append_PreambleToSpecFile: FORCE
 	@$(ECHO-E) "" >> $(PEGASUS_RPM_SPEC_FILE_PATH)
 	@$(CAT) $(ROOT)/rpm/tog-specfiles/tog-pegasus-buildRequires.spec \
             >> $(PEGASUS_RPM_SPEC_FILE_PATH)
-ifdef PEGASUS_USE_NET_SNMP
+ifeq ($(PEGASUS_USE_NET_SNMP),true)
 	@$(ECHO-E) "BuildRequires:      net-snmp-devel" \
             >> $(PEGASUS_RPM_SPEC_FILE_PATH)
 endif
@@ -823,7 +838,7 @@ endif
 	@$(ECHO-E) "" >> $(PEGASUS_RPM_SPEC_FILE_PATH)
 	@$(CAT) $(ROOT)/rpm/tog-specfiles/tog-pegasus-requires.spec \
             >> $(PEGASUS_RPM_SPEC_FILE_PATH)
-ifdef PEGASUS_USE_NET_SNMP
+ifeq ($(PEGASUS_USE_NET_SNMP),true)
 	@$(ECHO-E) "Requires:           net-snmp" \
             >> $(PEGASUS_RPM_SPEC_FILE_PATH)
 endif

@@ -26,6 +26,15 @@
 #// SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #//
 #//////////////////////////////////////////////////////////////////////////
+##
+##  Note that in addition to the normal targets defined for building and
+##  executing poststarttests, this Makefile includes a target
+##      createSSLFilesforCVS-SystemSpecific
+##  To recreate the cert.pem ssl.cnf, and file.pem files that are in this
+##  directory and are committed to CVS. Normally this would be executed only
+##  if there is a problem with this self-signed certificate which is used
+##  only in local testing.
+##
 ROOT = ../..
 DIR = Server
 include $(ROOT)/mak/config.mak
@@ -34,7 +43,6 @@ LIBRARIES = \
     pegservice \
     pegclient \
     pegserver \
-    peguser \
     pegprm \
     NamespaceProvider \
     pegindicationservice \
@@ -43,8 +51,12 @@ LIBRARIES = \
     DefaultProviderManager \
     ProviderRegistrationProvider \
     pegauthentication \
-    UserAuthProvider \
     pegqueryexpression
+
+ifndef PEGASUS_PAM_AUTHENTICATION
+    LIBRARIES += peguser \
+		 UserAuthProvider
+endif
 
 ifeq ($(PEGASUS_ENABLE_CQL),true)
     LIBRARIES += \
@@ -87,6 +99,10 @@ ifeq ($(PEGASUS_ENABLE_PROTOCOL_WSMAN),true)
     LIBRARIES += pegwsmserver
 endif
 
+ifeq ($(PEGASUS_ENABLE_PROTOCOL_WEB),true)
+    LIBRARIES += pegwebserver
+endif
+
 LIBRARIES += \
     pegprovidermanager \
     pegpmservice \
@@ -95,8 +111,10 @@ LIBRARIES += \
     pegexportserver \
     pegrepository \
     pegconfig \
+    peghandler \
     peggeneral \
-    pegcommon
+    pegcommon \
+    cimrsserver
 
 ifeq ($(PEGASUS_ENABLE_COMPRESSED_REPOSITORY),true)
     LIBRARIES += z
@@ -136,6 +154,16 @@ tests:
 
 poststarttests:
 
+#####################################################################
+##
+## The following set of definitions and targets generate the certificate,
+## key and ssl configuration files that are in this directory and are used
+## for local nightly, stress, etc. testing.  This is # a manual operation.
+## It may be invoked at any time but generally when
+## the cert expires (about each 10 years). There is no automatic tool to
+## test for expired cert and generate new cert.
+##
+
 include $(ROOT)/mak/commands.mak
 
 PEGASUS_CREATE_SSLCNF_OPTIONS = \
@@ -173,6 +201,11 @@ PEGASUS_CREATE_SSL_CERT_OPTIONS += \
    PEGASUS_SSLCERT_RANDOMFILE=$(PEGASUS_HOME)/cimserver.rnd
 endif
 
+
+##
+## This target created the ssl file based on predefined information and
+## then creates the certificate
+##
 _createSSLFiles:
 	@$(MAKE) -f $(ROOT)/src/Server/Makefile createSSLCnfFile \
             $(PEGASUS_CREATE_SSLCNF_OPTIONS) \
@@ -180,6 +213,11 @@ _createSSLFiles:
 	@$(MAKE) -f $(ROOT)/src/Server/Makefile createSSLCertificate \
             $(PEGASUS_CREATE_SSLCERT_OPTIONS)
 
+##
+##  Create a new ssl.cnf, key file, and cert file based on the definitions
+##  defined below.  This target generates the files generally used in local
+##  testing
+##
 createSSLFilesforCVS-SystemSpecific:
 	@$(MAKE) -f $(ROOT)/src/Server/Makefile _createSSLFiles \
             PEGASUS_CREATE_PEGASUS_INTERNAL_CERT=yes \
@@ -188,6 +226,9 @@ createSSLFilesforCVS-SystemSpecific:
             PEGASUS_SSLCERT_CERTFILE=$(ROOT)/src/Server/cert.pem \
             PEGASUS_SSLCNF_FULLY_QUALIFIED_DSN="\"PEGASUS TEST CERTIFICATE-DO NOT USE\""
 
+##
+## Simply displays the existing certificate
+##
 displayCERTFILE:
 	@$(ECHO) "*** $(PEGASUS_SSLCERT_CERTFILE) ***"
 	@$(MAKE) -f $(ROOT)/src/Server/Makefile displayCertificate \

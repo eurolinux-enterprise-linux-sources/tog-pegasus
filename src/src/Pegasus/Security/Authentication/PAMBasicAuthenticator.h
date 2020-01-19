@@ -51,11 +51,14 @@ public:
 
     ~PAMBasicAuthenticator();
 
-    Boolean authenticate(
+    AuthenticationStatus authenticate(
         const String& userName,
-        const String& password);
+        const String& password,
+        AuthenticationInfo* authInfo);
 
-    Boolean validateUser(const String& userName);
+    AuthenticationStatus validateUser(
+        const String& userName,
+        AuthenticationInfo* authInfo);
 
     String getAuthResponseHeader();
 

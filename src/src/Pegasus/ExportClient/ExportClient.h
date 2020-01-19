@@ -34,7 +34,10 @@
 #include <Pegasus/Common/String.h>
 #include <Pegasus/Common/MessageQueue.h>
 #include <Pegasus/Common/SSLContext.h>
+#ifdef PEGASUS_ENABLE_PROTOCOL_WSMAN
 #include <Pegasus/ExportClient/WSMANExportRequestEncoder.h>
+#include <Pegasus/ExportClient/WSMANExportResponseDecoder.h>
+#endif
 #include <Pegasus/ExportClient/CIMExportRequestEncoder.h>
 #include <Pegasus/Common/Config.h>
 #include <Pegasus/Common/CIMName.h>
@@ -59,7 +62,8 @@ public:
     ExportClient(
         const char* queueId,
         HTTPConnector* httpConnector,
-        Uint32 timeoutMilliseconds);
+        Uint32 timeoutMilliseconds,
+        Monitor* monitor);
 
     virtual ~ExportClient();
 
@@ -84,7 +88,7 @@ public:
         const Uint32 portNumber);
 
     /**
-        Creates an HTTP connection with a Listener defined by
+        Creates an HTTPS connection with a Listener defined by
         the host and portNumber.
         @param host String defining the hostname of the listener.
         @param portNumber Uint32 defining the port number of the listener.
@@ -138,15 +142,19 @@ public:
 
 
     void  _connect();
-    void _disconnect();
+    void _disconnect(bool keepChallengeStat = true);
 
     HTTPConnector* _httpConnector;
+    Monitor* _monitor;
     Uint32 _timeoutMilliseconds;   
     Boolean _connected;   
     HTTPConnection* _httpConnection;   
+#ifdef PEGASUS_ENABLE_PROTOCOL_WSMAN
     WSMANExportRequestEncoder* _wsmanRequestEncoder;
+    WSMANExportResponseDecoder* _wsmanResponseDecoder;
+#endif
     CIMExportRequestEncoder* _cimRequestEncoder;    
-    CIMExportResponseDecoder* _responseDecoder;
+    CIMExportResponseDecoder* _cimResponseDecoder;
     ClientAuthenticator _authenticator;
     String _connectHost;
     Uint32 _connectPortNumber;

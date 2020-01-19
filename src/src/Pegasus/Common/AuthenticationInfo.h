@@ -39,12 +39,13 @@
 #include <Pegasus/Common/Linkage.h>
 #include <Pegasus/Common/SSLContext.h>
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-#include <Pegasus/Common/CIMKerberosSecurityAssociation.h>
-#endif
+
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+// TODO: write proper CIMKerberosSecurityAssociation with opaque types
+#include <Pegasus/Common/Negotiate.h>
+#endif //PEGASUS_NEGOTIATE_AUTHENTICATION
 
 PEGASUS_NAMESPACE_BEGIN
-
 
 /**
     This class keeps the authentication information of a connection
@@ -114,12 +115,12 @@ public:
     /** Constructor - Instantiates a AuthenticationInfo object.
     @param flag - used only to distinguish from the default constructor.
     */
-    AuthenticationInfo(Boolean flag)
+    AuthenticationInfo(Boolean)
     {
         PEG_METHOD_ENTER(
             TRC_AUTHENTICATION, "AuthenticationInfo::AuthenticationInfo");
 
-        _rep = new AuthenticationInfoRep(flag);
+        _rep = new AuthenticationInfoRep();
 
         PEG_METHOD_EXIT();
     }
@@ -301,27 +302,14 @@ public:
         return _rep->getIpAddress();
     }
 
-
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    /** Get the CIM Security Association
-        @return a pointer to the CIM Security Association
-    */
-    CIMKerberosSecurityAssociation* getSecurityAssociation() const
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    /** Get GSSAPI context for this connection. */
+    SharedPtr<NegotiateServerSession> getNegotiateSession()
     {
         CheckRep(_rep);
-        return _rep->getSecurityAssociation();
+        return _rep->getNegotiateSession();
     }
-
-    /** Set the CIM Security Association
-        The pointer will only be set once. If it is already set it will
-        not reset it.
-    */
-    void setSecurityAssociation()
-    {
-        CheckRep(_rep);
-        _rep->setSecurityAssociation();
-    }
-#endif
+#endif //PEGASUS_NEGOTIATE_AUTHENTICATION
 
     Array<SSLCertificateInfo*> getClientCertificateChain()
     {
@@ -353,6 +341,59 @@ public:
         CheckRep(_rep);
         return _rep->getRemotePrivilegedUserAccessChecked();
     }
+
+    void setAuthHandle(const AuthHandle & authHandle)
+    {
+        CheckRep(_rep);
+        _rep->setAuthHandle(authHandle);
+    }
+
+    AuthHandle getAuthHandle()
+    {
+        CheckRep(_rep);
+        return _rep->getAuthHandle();
+    }
+
+    void setUserRole(const String & userRole)
+    {
+        CheckRep(_rep);
+        _rep->setUserRole(userRole);
+    }
+
+    String getUserRole()
+    {
+        CheckRep(_rep);
+        return _rep->getUserRole();
+    }
+
+    void setExpiredPassword(Boolean status)
+    {
+        CheckRep(_rep);
+        _rep->setExpiredPassword(status);
+    }
+
+    Boolean isExpiredPassword() const
+    {
+        CheckRep(_rep);
+        return _rep->isExpiredPassword();
+    }
+
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    /**
+     * Value of Cookie: header to send in the next response
+     */
+    void setCookie(const String &value)
+    {
+        CheckRep(_rep);
+        _rep->setCookie(value);
+    }
+
+    String getCookie() const
+    {
+        CheckRep(_rep);
+        return _rep->getCookie();
+    }
+#endif
 
 private:
 

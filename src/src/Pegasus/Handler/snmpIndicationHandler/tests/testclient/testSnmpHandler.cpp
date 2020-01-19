@@ -171,9 +171,9 @@ CIMObjectPath _createHandlerInstance(
         handlerInstance.addProperty (CIMProperty (
             CIMName ("SNMPSecurityAuthProtocol"),snmpSecAuthProto));
 
-        oid *snmpSecAuthProtoOid;
         size_t snmpSecAuthProtoLen=0;
  
+        oid *snmpSecAuthProtoOid = NULL;
         if(snmpSecAuthKey.size() > 0)
         {
            if(snmpSecAuthProto == 1)
@@ -836,7 +836,9 @@ Uint32 _getReceivedTrapCount(Uint16 snmpVersion, const String& logFile)
 
     Uint32 receivedTrap1Count = 0;
     Uint32 receivedTrap2Count = 0;
+#ifdef PEGASUS_ENABLE_NET_SNMPV3
     Uint32 receivedTrap3Count = 0;
+#endif
 
     ifstream ifs(logFile.getCString());
     if (!ifs)

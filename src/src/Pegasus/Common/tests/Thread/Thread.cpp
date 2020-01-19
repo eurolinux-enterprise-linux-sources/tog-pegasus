@@ -310,7 +310,6 @@ void testReadWriteThreads()
 void exit_one(void *parm)
 {
 
-   Thread *my_handle = (Thread *)parm;
    if (verbose)
        cout << "1";
 }
@@ -318,14 +317,12 @@ void exit_one(void *parm)
 void exit_two(void *parm)
 {
 
-   Thread *my_handle = (Thread *)parm;
    if (verbose)
        cout << "2";
 }
 
 void deref(void *parm)
 {
-
    Thread *my_handle = (Thread *)parm;
    try
    {
@@ -509,7 +506,8 @@ ThreadReturnType PEGASUS_THREAD_CDECL writing_thread(void *parm)
       }
       catch (...)
       {
-         cout << "Exception while trying to release a write  lock" << endl;
+         cout << "Exception while trying to release a write lock:"
+              << Threads::id(myself).buffer << endl;
          abort();
       }
    }
@@ -522,9 +520,8 @@ ThreadReturnType PEGASUS_THREAD_CDECL writing_thread(void *parm)
 // Main
 //
 // //////////////////////////////////////////////////////////////////////
-int main(int argc, char **argv)
+int main(int, char **argv)
 {
-    int i;
     verbose = (getenv("PEGASUS_TEST_VERBOSE")) ? true : false;
 
     testOneThread();

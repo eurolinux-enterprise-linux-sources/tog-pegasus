@@ -328,7 +328,7 @@ static void testGetInstanceElement3(const char* testDataFile)
     {
         CIMValue value;
         XmlReader::getValueElement(parser2, CIMTYPE_CHAR16, value);
-        PEGASUS_ASSERT(false);
+        PEGASUS_TEST_ASSERT(false);
     }
     catch(const XmlSemanticError&)
     {
@@ -367,7 +367,7 @@ void testVersionFunctions()
     PEGASUS_TEST_ASSERT (!XmlReader::isSupportedCIMVersion("1.1"));
 }
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     verbose = getenv("PEGASUS_TEST_VERBOSE") ? true : false;
 

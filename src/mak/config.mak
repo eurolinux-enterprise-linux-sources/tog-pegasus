@@ -33,9 +33,17 @@
 ##
 ################################################################################
 
-ifndef ROOT
-    ROOT =  $(subst \,/,$(PEGASUS_ROOT))
+#PEGASUS_ROOT is mandatory currently
+ifdef PEGASUS_ROOT
+  ifeq ($(wildcard $(PEGASUS_ROOT)),)
+    $(error PEGASUS_ROOT = $(PEGASUS_ROOT) is incorrect, \
+      Did you meant to set it to $(CURDIR)?)
+  endif
+  ROOT =  $(subst \,/,$(PEGASUS_ROOT))
+else
+  $(error PEGASUS_ROOT environment variable undefined)
 endif
+
 
 ifdef PEGASUS_ENVVAR_FILE
     include $(PEGASUS_ENVVAR_FILE)
@@ -49,11 +57,6 @@ else
     $(error PEGASUS_HOME environment variable undefined)
 endif
 
-ifdef PEGASUS_ROOT
-    ROOT =  $(subst \,/,$(PEGASUS_ROOT))
-else
-    $(error PEGASUS_ROOT environment variable undefined)
-endif
 
 ifdef PEGASUS_TMP
     TMP_DIR = $(subst \,/,$(PEGASUS_TMP))
@@ -239,7 +242,7 @@ endif
 ## NOTE: If the default below is changed, please update the definition
 ## of default for this variable in pegasus/doc/BuildAndReleaseOptions.html
 ifndef PEGASUS_CIM_SCHEMA
-    PEGASUS_CIM_SCHEMA=CIM231
+    PEGASUS_CIM_SCHEMA=CIM241
 endif
 
 CIM_SCHEMA_DIR=$(PEGASUS_ROOT)/Schemas/$(PEGASUS_CIM_SCHEMA)
@@ -480,47 +483,9 @@ ifdef PEGASUS_MAX_THREADS_PER_SVC_QUEUE
   DEFINES += -DMAX_THREADS_PER_SVC_QUEUE=$(PEGASUS_MAX_THREADS_PER_SVC_QUEUE)
 endif
 
-##############################################################################
-##
-## PEGASUS_INDICATIONS_Q_THRESHOLD
-##
-## Controls if indications providers are stalled if the indications
-## service queue is too large.
-##
-##      defaults to not set.
-##
-## 	It can be set to any positive value.
-##
-## If not set providers are never stalled. This implies that the
-## indications service queue may become as large as neccesary to hold all
-## the indicaitons generated.
-##
-## If set to any value then providers are stalled by forcing them to sleep
-## when they try to deliver an indication and the indications service queue
-## exceeds this value. They are resumed when the queue count falls 10 percent
-## below this value.
-##
-## Stall and resume log entries are made to inform the administrator
-## the condition has occured.
-##
-## WARNING: This also affects the Out of Process Providers (OOP Providers)
-##    The OOP Providers use two one way pipes for communication.
-##    By stalling the Provider this prevents the pipe from being read
-##    which will cause the pipe to fill up and the remote side will block.
-##    OOP Prividers mix indications and operations on these two pipes.
-##    This means the operations will also be blocked as a side effect of
-##    the indications being stalled.
-##
-##
-
-ifdef PEGASUS_INDICATIONS_Q_THRESHOLD
-  DEFINES += -DPEGASUS_INDICATIONS_Q_THRESHOLD=$(PEGASUS_INDICATIONS_Q_THRESHOLD)
-endif
-
-
 # Allow PEGASUS_ASSERT statements to be disabled.
 ifdef PEGASUS_NOASSERTS
-    DEFINES += -DNDEBUG
+    DEFINES += -DNDEBUG -DPEGASUS_NOASSERTS
 endif
 
 # do not compile trace code. sometimes it causes problems debugging
@@ -639,6 +604,31 @@ endif
 
 ############################################################################
 #
+# PEGASUS_ENABLE_FQL
+# The use model is:
+#
+# Use PEGASUS_ENABLE_FQL=true  to enable  compilation of FQL functions.
+#
+# Use PEGASUS_ENABLE_FQL=false to disable compilation of FQL functions.
+#
+# Default is PEGASUS_ENABLE_FQL=true if not defined external to config.mak
+#
+
+ifndef PEGASUS_ENABLE_FQL
+    # Default is true. CQL is enabled normally on all platforms unless specifically defined
+    PEGASUS_ENABLE_FQL=true
+endif
+
+ifeq ($(PEGASUS_ENABLE_FQL),true)
+    DEFINES += -DPEGASUS_ENABLE_FQL
+else
+    ifneq ($(PEGASUS_ENABLE_FQL),false)
+        $(error PEGASUS_ENABLE_FQL ($(PEGASUS_ENABLE_FQL)) invalid, must be true or false)
+    endif
+endif
+
+############################################################################
+#
 # PEGASUS_OVERRIDE_PRODUCT_ID
 # PEP 186
 # Allow override of product name/version/status.  A file
@@ -720,22 +710,27 @@ ifdef PEGASUS_DISABLE_INSTANCE_QUALIFIERS
 endif
 
 # Controls snmp indication handler to use NET-SNMP to deliver trap
-ifdef PEGASUS_USE_NET_SNMP
-    DEFINES += -DPEGASUS_USE_NET_SNMP
+ifdef PEGASUS_USE_NET_SNMP   
+   ifeq ($(PEGASUS_USE_NET_SNMP),true)
+      DEFINES += -DPEGASUS_USE_NET_SNMP
+   else
+      ifneq ($(PEGASUS_USE_NET_SNMP),false)
+         $(error PEGASUS_USE_NET_SNMP ($(PEGASUS_USE_NET_SNMP)) invalid, must be true or false)
+      endif
+   endif
 endif
-
 # Controls snmp indication handler to use NET-SNMP V3 features. 
 ifndef PEGASUS_ENABLE_NET_SNMPV3
-    ifdef PEGASUS_USE_NET_SNMP
-        PEGASUS_ENABLE_NET_SNMPV3=true
+    ifeq ($(PEGASUS_USE_NET_SNMP),true)
+       PEGASUS_ENABLE_NET_SNMPV3=true
     else
         PEGASUS_ENABLE_NET_SNMPV3=false
     endif
 endif
 
 ifeq ($(PEGASUS_ENABLE_NET_SNMPV3),true)
-    ifndef PEGASUS_USE_NET_SNMP
-        $(error PEGASUS_USE_NET_SNMP should be set when PEGASUS_ENABLE_NET_SNMPV3 is true)
+    ifneq ($(PEGASUS_USE_NET_SNMP),true)
+        $(error PEGASUS_USE_NET_SNMP should be set to true when PEGASUS_ENABLE_NET_SNMPV3 is true)
     endif
     DEFINES += -DPEGASUS_ENABLE_NET_SNMPV3
 else
@@ -1179,10 +1174,6 @@ ifdef PEGASUS_DEBUG
         DEFINES += -DPEGASUS_INDICATION_HASHTRACE
     endif
 
-    # Setup the conditional compile for client displays.
-    ifdef PEGASUS_CLIENT_TRACE_ENABLE
-        DEFINES += -DPEGASUS_CLIENT_TRACE_ENABLE
-    endif
 endif
 
 # compile in the experimental APIs
@@ -1249,16 +1240,6 @@ endif
 # Allow remote CMPI functionality to be enabled
 ifdef PEGASUS_ENABLE_REMOTE_CMPI
     DEFINES += -DPEGASUS_ENABLE_REMOTE_CMPI
-endif
-
-############################################################
-#
-# Set any vendor-specific compile flags
-#
-############################################################
-
-ifdef PEGASUS_VENDOR_HP
-    DEFINES+= -DPEGASUS_VENDOR_HP
 endif
 
 
@@ -1409,6 +1390,41 @@ endif
 
 ##==============================================================================
 ##
+## PEGASUS_PAM_SESSION_SECURITY
+##
+## This is a new method to handle authentication with PAM in case it is required
+## to keep the PAM session established by pam_start() open across an
+## entire CIM request.
+##
+## This feature contradicts PEGASUS_PAM_AUTHENTICATION and
+## PEGASUS_USE_PAM_STANDALONE_PROC
+## Because of the additional process this feature is not compatible with
+## Privilege Separation.
+##
+##==============================================================================
+
+ifeq ($(PEGASUS_PAM_SESSION_SECURITY),true)
+    ifdef PEGASUS_PAM_AUTHENTICATION
+        $(error "PEGASUS_PAM_AUTHENTICATION must NOT be defined when PEGASUS_PAM_SESSION_SECURITY is defined")
+    endif
+    ifdef PEGASUS_USE_PAM_STANDALONE_PROC
+        $(error "PEGASUS_USE_PAM_STANDALONE_PROC must NOT be defined when PEGASUS_PAM_SESSION_SECURITY is defined")
+    endif
+    ifdef PEGASUS_ENABLE_PRIVILEGE_SEPARATION
+        $(error "PEGASUS_ENABLE_PRIVILEGE_SEPARATION must NOT be defined when PEGASUS_PAM_SESSION_SECURITY is defined")
+    endif
+    # Compile in the code required for PAM 
+    # and compile out the code that uses the password file.
+    DEFINES += -DPEGASUS_PAM_SESSION_SECURITY -DPEGASUS_NO_PASSWORDFILE
+    # Link with libpam only where it is needed.
+    ifeq ($(HAS_PAM_DEPENDENCY),true)
+        SYS_LIBS += -lpam
+    endif
+endif
+
+
+##==============================================================================
+##
 ## PEGASUS_PAM_AUTHENTICATION
 ##
 ##==============================================================================
@@ -1422,6 +1438,26 @@ ifdef PEGASUS_PAM_AUTHENTICATION
     ifeq ($(HAS_PAM_DEPENDENCY),true)
         SYS_LIBS += -lpam
     endif
+endif
+
+##==============================================================================
+##
+## PEGASUS_NEGOTIATE_AUTHENTICATION
+##
+##==============================================================================
+
+ifndef PEGASUS_NEGOTIATE_AUTHENTICATION
+  PEGASUS_NEGOTIATE_AUTHENTICATION=false
+endif
+
+ifeq ($(PEGASUS_NEGOTIATE_AUTHENTICATION),true)
+    DEFINES += -DPEGASUS_NEGOTIATE_AUTHENTICATION
+    # Link with MIT Kerberos
+    SYS_LIBS += -lgssapi_krb5
+else
+  ifneq ($(PEGASUS_NEGOTIATE_AUTHENTICATION),false)
+    $(error "PEGASUS_NEGOTIATE_AUTHENTICATION must be true or false")
+  endif
 endif
 
 ##==============================================================================
@@ -1494,6 +1530,29 @@ else
   endif
 endif
 
+
+##==============================================================================
+##
+## PEGASUS_ENABLE_PROTOCOL_WEB
+##
+##     Enables the GET-Method for files in order to act as a web-server
+##
+##
+##
+##
+##==============================================================================
+ifndef PEGASUS_ENABLE_PROTOCOL_WEB
+  PEGASUS_ENABLE_PROTOCOL_WEB = true
+endif
+
+ifeq ($(PEGASUS_ENABLE_PROTOCOL_WEB),true)
+  DEFINES += -DPEGASUS_ENABLE_PROTOCOL_WEB
+else
+  ifneq ($(PEGASUS_ENABLE_PROTOCOL_WEB),false)
+    $(error "PEGASUS_ENABLE_PROTOCOL_WEB must be true or false")
+  endif
+endif
+
 ## ======================================================================
 ##
 ## PLATFORM_CORE_PATTERN
@@ -1558,3 +1617,36 @@ endif
 NAMESPACE_INTEROP = interop
 
 NAMESPACE_ROOT_INTEROP = root/interop
+
+
+##==============================================================================
+##
+## PEGASUS_ENABLE_SESSION_COOKIES
+##
+##==============================================================================
+
+# Cookies are enabled by defaut when HAS_SSL is defined _or_ on zOS
+ifndef PEGASUS_ENABLE_SESSION_COOKIES
+  ifdef PEGASUS_HAS_SSL
+    PEGASUS_ENABLE_SESSION_COOKIES=true
+  else
+    ifeq ($(OS),zos)
+      PEGASUS_ENABLE_SESSION_COOKIES=true
+    else
+      PEGASUS_ENABLE_SESSION_COOKIES=false
+    endif
+  endif
+endif
+
+ifeq ($(PEGASUS_ENABLE_SESSION_COOKIES),true)
+  ifndef PEGASUS_HAS_SSL
+    ifneq ($(OS),zos)
+      $(error "PEGASUS_ENABLE_SESSION_COOKIES can be set to 'true' only when PEGASUS_HAS_SSL is 'true' or on zOS platform")
+    endif
+  endif
+  DEFINES += -DPEGASUS_ENABLE_SESSION_COOKIES
+else
+  ifneq ($(PEGASUS_ENABLE_SESSION_COOKIES),false)
+    $(error "PEGASUS_ENABLE_SESSION_COOKIES must be true or false")
+  endif
+endif

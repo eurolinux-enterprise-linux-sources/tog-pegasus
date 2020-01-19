@@ -230,9 +230,12 @@ void testLocalAuthSuccess()
     if (verbose) cout << "Local Resp AuthHeader: " << authHeader << endl;
 
     Boolean authenticated;
+    // test case looks for success, initialize with failure
+    AuthenticationStatus authStatus(AUTHSC_UNAUTHORIZED);
 
-    authenticated =
-        authManager.performPegasusAuthentication(authHeader, authInfo);
+
+    authStatus = authManager.performPegasusAuthentication(authHeader, authInfo);
+    authenticated = authStatus.isSuccess();
 
     //
     // remove the auth file created for this user request
@@ -272,9 +275,11 @@ void testBasicAuthSuccess()
     authHeader.append(encodeUserPass(userPass));
 
     Boolean authenticated;
+    // test case looks for success, initialize with failure
+    AuthenticationStatus authStatus(AUTHSC_UNAUTHORIZED);
 
-    authenticated =
-        authManager.performHttpAuthentication(authHeader, authInfo);
+    authStatus = authManager.performHttpAuthentication(authHeader, authInfo);
+    authenticated = authStatus.isSuccess();
 
     if (verbose)
     {
@@ -289,7 +294,7 @@ void testBasicAuthSuccess()
 
 ////////////////////////////////////////////////////////////////////
 
-int main(int argc, char** argv)
+int main(int, char** argv)
 {
     verbose = (getenv ("PEGASUS_TEST_VERBOSE")) ? true : false;
     if (verbose)
@@ -306,6 +311,7 @@ int main(int argc, char** argv)
 #endif
 
         ConfigManager* configManager = ConfigManager::getInstance();
+        PEGASUS_TEST_ASSERT(0 != configManager);
 
         const char* path = getenv("PEGASUS_HOME");
         String pegHome = path;
@@ -337,7 +343,10 @@ int main(int argc, char** argv)
 
         // -- Create a UserManager object:
 
+#ifndef PEGASUS_PAM_AUTHENTICATION
         UserManager* userManager = UserManager::getInstance(repository);
+        PEGASUS_TEST_ASSERT(0 != userManager);
+#endif
 
         testHttpAuthHeader();
 
@@ -356,7 +365,9 @@ int main(int argc, char** argv)
         if (verbose) cout << "Doing testBasicAuthSuccess()...." << endl;
         testBasicAuthSuccess();
 
+#ifndef PEGASUS_PAM_AUTHENTICATION
         UserManager::destroy();
+#endif
         delete repository;
         FileSystem::removeDirectoryHier(repositoryPath);
     }

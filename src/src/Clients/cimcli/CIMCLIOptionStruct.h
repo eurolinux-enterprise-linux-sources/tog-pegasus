@@ -35,6 +35,7 @@
 #include <Pegasus/Common/Config.h>
 #include <Clients/cimcli/Linkage.h>
 #include <Pegasus/Common/PegasusAssert.h>
+#include <Pegasus/General/Stopwatch.h>
 #include <Pegasus/Client/CIMClient.h>
 #include <Clients/cimcli/CIMCLIClient.h>
 
@@ -201,6 +202,14 @@ struct  OptionStruct
     // Internal work variables
     Stopwatch elapsedTime;
     double saveElapsedTime;
+
+//EXP_PULL_BEGIN  -- Add parameters for pull operations
+    Uint32Arg pullOperationTimeout;
+    Uint32 maxObjectCount;     // maxObjects to receive for pull operations
+    Boolean continueOnError;      // ContinueOnError Flag for open... operations
+    Uint32 maxObjectsToReceive;
+    Uint32 pullDelay;
+//EXP_PULL_END
 };
 
 typedef struct OptionStruct Options;

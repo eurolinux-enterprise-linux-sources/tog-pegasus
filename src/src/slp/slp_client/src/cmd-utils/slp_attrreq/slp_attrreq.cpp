@@ -63,7 +63,6 @@
 static char *url, *scopes, *tags, *addr, *_interface;
 static int16 converge ;
 static BOOL dir_agent = FALSE;
-static BOOL test = FALSE;
 static BOOL parsable = FALSE;
 static char fs='\t', rs='\n';
 static int16 port = DEFAULT_SLP_PORT;
@@ -364,7 +363,7 @@ int main(int argc, char **argv)
                     }
                 }/* if we got an attr rply */
                 _LSLP_UNLINK(temp);
-                lslpDestroySLPMsg(temp, LSLP_DESTRUCTOR_DYNAMIC);
+                lslpDestroySLPMsg(temp);
 
             } /* while traversing response list */
             destroy_slp_client(client);

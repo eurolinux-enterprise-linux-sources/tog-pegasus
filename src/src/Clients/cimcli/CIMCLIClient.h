@@ -34,8 +34,7 @@
 
 #include <Pegasus/Common/Config.h>
 #include <Clients/cimcli/Linkage.h>
-#include <Pegasus/Common/PegasusAssert.h>
-#include <Pegasus/General/Stopwatch.h>
+
 #include "CIMCLIOptionStruct.h"
 
 
@@ -142,6 +141,24 @@ int PEGASUS_CLI_LINKAGE showProfiles(Options& opts);
 int PEGASUS_CLI_LINKAGE setObjectManagerStatistics(Options& opts,
                                    Boolean newState,
                                    Boolean& stateAfterMod);
+
+//KS_PULL_BEGIN
+int PEGASUS_CLI_LINKAGE pullEnumerateInstances(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullEnumerateInstancePaths(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullReferenceInstances(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullReferenceInstancePaths(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullAssociatorInstances(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullAssociatorInstancePaths(Options& opts);
+
+int PEGASUS_CLI_LINKAGE pullQueryInstances(Options& opts);
+
+int PEGASUS_CLI_LINKAGE countInstances(Options& opts);
+//KS_PULL_END
 
 int PEGASUS_CLI_LINKAGE countInstances(Options& opts);
 

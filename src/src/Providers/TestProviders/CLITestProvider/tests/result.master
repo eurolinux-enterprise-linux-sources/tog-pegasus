@@ -60,8 +60,9 @@ class Test_CLITestProviderClass
     real64 arrayReal64[];
     string arrayString[];
     datetime arrayDateTime[];
-    uint32 ReferenceParamTest([in] reference InParam1, [in] reference 
-        InParam2[], [out] reference OutParam1, [out] reference OutParam2[]);
+    uint32 ReferenceParamTest([in] Test_CLITestProviderClass REF InParam1, 
+        [in] Test_CLITestProviderClass REF InParam2[], [out] Test_CLITestProviderClass 
+        REF OutParam1, [out] Test_CLITestProviderClass REF OutParam2[]);
     
         [Description ( "Method to test input and output of all parameter "
             "types except REF and embedded entity. Provider is expected "
@@ -108,7 +109,9 @@ class Test_CLITestProviderClass
             "behavior" ), 
         static]
     uint32 setProviderParameters([in, 
-    out] string substituteHostName);
+    out, 
+    Description ( "Sets a string to be used as the host name for responses "
+        "that require a host name" )] string substituteHostName);
     
         [Description ( "Method to reset all parameters that control "
             "provider behavior " ), 
@@ -133,7 +136,7 @@ class Test_CLITestProviderClass
 // Test_CLITestProviderLinkClass
 // ===================================================
 
-    [ASSOCIATION, 
+    [Association, 
     Version ( "1.0.0" ), 
     Description ( "Defines the relationship between parents and children. "
         "Used to test Ref/Assoc functions and creation/modification "
@@ -164,7 +167,7 @@ class Test_CLITestProviderLinkClass
     string requestInputParameters;
 };
 <CLASS NAME="Test_CLITestProviderLinkClass">
-    <QUALIFIER NAME="ASSOCIATION" TYPE="boolean" OVERRIDABLE="false">
+    <QUALIFIER NAME="Association" TYPE="boolean" OVERRIDABLE="false">
         <VALUE>
             TRUE
         </VALUE>
@@ -202,7 +205,7 @@ class Test_CLITestProviderLinkClass
     </PROPERTY>
 </CLASS>
 <CLASS NAME="Test_CLITestProviderLinkClass">
-    <QUALIFIER NAME="ASSOCIATION" TYPE="boolean" OVERRIDABLE="false">
+    <QUALIFIER NAME="Association" TYPE="boolean" OVERRIDABLE="false">
         <VALUE>
             TRUE
         </VALUE>
@@ -241,7 +244,7 @@ class Test_CLITestProviderLinkClass
 </CLASS>
 8. +++++ Test QualifierDecl Operations
 
-Qualifier ASSOCIATION : boolean = FALSE, Scope(class association), 
+Qualifier Association : boolean = FALSE, Scope(class association), 
     Flavor(DisableOverride, ToSubclass);
 
 Qualifier Abstract : boolean = FALSE, Scope(class association indication), 
@@ -258,15 +261,12 @@ Qualifier Alias : string = null, Scope(property reference method),
 
 Qualifier ArrayType : string = "Bag", Scope(property parameter);
 
-Qualifier ASSOCIATION : boolean = FALSE, Scope(class association), 
+Qualifier Association : boolean = FALSE, Scope(class association), 
     Flavor(DisableOverride, ToSubclass);
 
 Qualifier BitMap : string[], Scope(property method parameter);
 
 Qualifier BitValues : string[], Scope(property method parameter), Flavor(EnableOverride, 
-    ToSubclass, Translatable);
-
-Qualifier CLASS : string = null, Scope(property method), Flavor(DisableOverride, 
     ToSubclass, Translatable);
 
 Qualifier Counter : boolean = FALSE, Scope(property method parameter);
@@ -299,7 +299,7 @@ Qualifier Ifdeleted : boolean = FALSE, Scope(association reference);
 Qualifier In : boolean = TRUE, Scope(parameter), Flavor(DisableOverride, 
     ToSubclass);
 
-Qualifier INDICATION : boolean = FALSE, Scope(class indication), Flavor(DisableOverride, 
+Qualifier Indication : boolean = FALSE, Scope(class indication), Flavor(DisableOverride, 
     ToSubclass);
 
 Qualifier Invisible : boolean = FALSE, Scope(class association property 
@@ -353,6 +353,9 @@ Qualifier Required : boolean = FALSE, Scope(property);
 
 Qualifier Revision : string = ".5", Scope(class association indication), 
     Flavor(EnableOverride, ToSubclass, Translatable);
+
+Qualifier Schema : string = null, Scope(property method), Flavor(DisableOverride, 
+    ToSubclass, Translatable);
 
 Qualifier Source : string = null, Scope(class association indication);
 
@@ -412,7 +415,7 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <SCOPE PROPERTY="true" PARAMETER="true"/><VALUE>Bag</VALUE>
 </QUALIFIER.DECLARATION>
 
-<QUALIFIER.DECLARATION NAME="ASSOCIATION" TYPE="boolean" OVERRIDABLE="false">
+<QUALIFIER.DECLARATION NAME="Association" TYPE="boolean" OVERRIDABLE="false">
 <SCOPE CLASS="true" ASSOCIATION="true"/><VALUE>FALSE</VALUE>
 </QUALIFIER.DECLARATION>
 
@@ -421,9 +424,6 @@ Qualifier Write : boolean = FALSE, Scope(property);
 
 <QUALIFIER.DECLARATION NAME="BitValues" TYPE="string" ISARRAY="true" TRANSLATABLE="true">
 <SCOPE PROPERTY="true" METHOD="true" PARAMETER="true"/></QUALIFIER.DECLARATION>
-
-<QUALIFIER.DECLARATION NAME="CLASS" TYPE="string" OVERRIDABLE="false" TRANSLATABLE="true">
-<SCOPE PROPERTY="true" METHOD="true"/></QUALIFIER.DECLARATION>
 
 <QUALIFIER.DECLARATION NAME="Counter" TYPE="boolean">
 <SCOPE PROPERTY="true" METHOD="true" PARAMETER="true"/><VALUE>FALSE</VALUE>
@@ -470,7 +470,7 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <SCOPE PARAMETER="true"/><VALUE>TRUE</VALUE>
 </QUALIFIER.DECLARATION>
 
-<QUALIFIER.DECLARATION NAME="INDICATION" TYPE="boolean" OVERRIDABLE="false">
+<QUALIFIER.DECLARATION NAME="Indication" TYPE="boolean" OVERRIDABLE="false">
 <SCOPE CLASS="true" INDICATION="true"/><VALUE>FALSE</VALUE>
 </QUALIFIER.DECLARATION>
 
@@ -549,6 +549,9 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <QUALIFIER.DECLARATION NAME="Revision" TYPE="string" TRANSLATABLE="true">
 <SCOPE CLASS="true" ASSOCIATION="true" INDICATION="true"/><VALUE>.5</VALUE>
 </QUALIFIER.DECLARATION>
+
+<QUALIFIER.DECLARATION NAME="Schema" TYPE="string" OVERRIDABLE="false" TRANSLATABLE="true">
+<SCOPE PROPERTY="true" METHOD="true"/></QUALIFIER.DECLARATION>
 
 <QUALIFIER.DECLARATION NAME="Source" TYPE="string">
 <SCOPE CLASS="true" ASSOCIATION="true" INDICATION="true"/></QUALIFIER.DECLARATION>
@@ -619,7 +622,7 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <SCOPE PROPERTY="true" PARAMETER="true"/><VALUE>Bag</VALUE>
 </QUALIFIER.DECLARATION>
 
-<QUALIFIER.DECLARATION NAME="ASSOCIATION" TYPE="boolean" OVERRIDABLE="false">
+<QUALIFIER.DECLARATION NAME="Association" TYPE="boolean" OVERRIDABLE="false">
 <SCOPE CLASS="true" ASSOCIATION="true"/><VALUE>FALSE</VALUE>
 </QUALIFIER.DECLARATION>
 
@@ -628,9 +631,6 @@ Qualifier Write : boolean = FALSE, Scope(property);
 
 <QUALIFIER.DECLARATION NAME="BitValues" TYPE="string" ISARRAY="true" TRANSLATABLE="true">
 <SCOPE PROPERTY="true" METHOD="true" PARAMETER="true"/></QUALIFIER.DECLARATION>
-
-<QUALIFIER.DECLARATION NAME="CLASS" TYPE="string" OVERRIDABLE="false" TRANSLATABLE="true">
-<SCOPE PROPERTY="true" METHOD="true"/></QUALIFIER.DECLARATION>
 
 <QUALIFIER.DECLARATION NAME="Counter" TYPE="boolean">
 <SCOPE PROPERTY="true" METHOD="true" PARAMETER="true"/><VALUE>FALSE</VALUE>
@@ -677,7 +677,7 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <SCOPE PARAMETER="true"/><VALUE>TRUE</VALUE>
 </QUALIFIER.DECLARATION>
 
-<QUALIFIER.DECLARATION NAME="INDICATION" TYPE="boolean" OVERRIDABLE="false">
+<QUALIFIER.DECLARATION NAME="Indication" TYPE="boolean" OVERRIDABLE="false">
 <SCOPE CLASS="true" INDICATION="true"/><VALUE>FALSE</VALUE>
 </QUALIFIER.DECLARATION>
 
@@ -757,6 +757,9 @@ Qualifier Write : boolean = FALSE, Scope(property);
 <SCOPE CLASS="true" ASSOCIATION="true" INDICATION="true"/><VALUE>.5</VALUE>
 </QUALIFIER.DECLARATION>
 
+<QUALIFIER.DECLARATION NAME="Schema" TYPE="string" OVERRIDABLE="false" TRANSLATABLE="true">
+<SCOPE PROPERTY="true" METHOD="true"/></QUALIFIER.DECLARATION>
+
 <QUALIFIER.DECLARATION NAME="Source" TYPE="string">
 <SCOPE CLASS="true" ASSOCIATION="true" INDICATION="true"/></QUALIFIER.DECLARATION>
 
@@ -809,6 +812,7 @@ Qualifier Write : boolean = FALSE, Scope(property);
 
 9. +++++ getClass Operation
 67 class names  returned.
+
 CIM_ActsAsSpare
 CIM_CollectedCollections
 CIM_CollectionConfiguration
@@ -2213,7 +2217,7 @@ substituteHostName=
 // path= //localhost/test/TestProvider:Test_CLITestProviderLinkClass.child="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\"",parent="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\""
 
 
-    [ASSOCIATION, 
+    [Association, 
     Version ( "1.0.0" ), 
     Description ( "Defines the relationship between parents and children. "
         "Used to test Ref/Assoc functions and creation/modification "
@@ -2237,7 +2241,7 @@ instance of Test_CLITestProviderLinkClass
 // path= //localhost/test/TestProvider:Test_CLITestProviderLinkClass.child="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\"",parent="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\""
 
 
-    [ASSOCIATION, 
+    [Association, 
     Version ( "1.0.0" ), 
     Description ( "Defines the relationship between parents and children. "
         "Used to test Ref/Assoc functions and creation/modification "
@@ -2263,7 +2267,7 @@ instance of Test_CLITestProviderLinkClass
 // path= //localhost/test/TestProvider:Test_CLITestProviderLinkClass.child="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\"",parent="//localhost/test/TestProvider:Test_CLITestProviderClass.Id=\"Mike\""
 
 
-    [ASSOCIATION, 
+    [Association, 
     Version ( "1.0.0" ), 
     Description ( "Defines the relationship between parents and children. "
         "Used to test Ref/Assoc functions and creation/modification "
@@ -2335,8 +2339,9 @@ class Test_CLITestProviderClass
     real64 arrayReal64[];
     string arrayString[];
     datetime arrayDateTime[];
-    uint32 ReferenceParamTest(reference InParam1, reference InParam2[], 
-        reference OutParam1, reference OutParam2[]);
+    uint32 ReferenceParamTest(Test_CLITestProviderClass REF InParam1, 
+        Test_CLITestProviderClass REF InParam2[], Test_CLITestProviderClass 
+        REF OutParam1, Test_CLITestProviderClass REF OutParam2[]);
     uint32 InOutParamTest(boolean scalBool, uint8 scalUint8, sint8 
         scalSint8, uint16 scalUint16, sint16 scalSint16, uint32 scalUint32, 
         sint32 scalSint32, uint64 scalUint64, real32 scalReal32, real64 
@@ -2360,7 +2365,7 @@ class Test_CLITestProviderClass
     uint32 reset();
     uint32 debugMode(boolean newState);
 };
-1 associator names
+1 associatorNames
 //ChangedHostName/test/TestProvider:Test_CLITestProviderClass
 Return Value= 0
 substituteHostName=
@@ -2417,7 +2422,7 @@ instance of Test_CLITestProviderClass
     arrayDateTime = {"19991224120000.000000+360", "19991224120000.000000+360", 
         "19991224120000.000000+360"};
 };
-1 associator names
+1 associatorNames
 //localhost/test/TestProvider:Test_CLITestProviderClass.Id="Mike"
 
 // path= //localhost/test/TestProvider:Test_CLITestProviderClass.Id="Mike"
@@ -2473,7 +2478,9 @@ Test instance Test_CLITestProviderClass.Id="EmptyStringTest" OK
 Return Value= 0
 substituteHostName=
 1 instances of class Test_CLITestProviderClass returned.
+
 1  Test_CLITestProviderClass returned.
+
 
 // path= Test_CLITestProviderClass.Id="Mike"
 
@@ -2536,17 +2543,23 @@ instance of Test_CLITestProviderClass
 };
 Test_CLITestProviderClass.Id="Mike"
 1 instances of class Test_CLITestProviderClass returned.
-Failed instances of class count test. Expected= 10 Received= 1
+
+Failed instances of class count test. Expected 10. Received 1.
 1  Test_CLITestProviderClass returned.
-Failed  count test. Expected= 10 Received= 1
+
+Failed  count test. Expected 10. Received 1.
 1 associators  returned.
-Failed associators count test. Expected= 10 Received= 1
+
+Failed associators count test. Expected 10. Received 1.
 1 references  returned.
-Failed references count test. Expected= 10 Received= 1
-1 associator names Test_CLITestProviderClass returned.
-Failed associator names count test. Expected= 10 Received= 1
+
+Failed references count test. Expected 10. Received 1.
+1 associatorNames Test_CLITestProviderClass returned.
+
+Failed associatorNames count test. Expected 10. Received 1.
 1 referenceNames Test_CLITestProviderClass returned.
-Failed referenceNames count test. Expected= 10 Received= 1
+
+Failed referenceNames count test. Expected 10. Received 1.
 Return Value= 0
 21. +++++ SortInstancesTest
 Test_CLITestProviderClass.Id="Andy"
@@ -2682,7 +2695,7 @@ WET_Statistics
 WET_Synchronized
 23. +++++ Test execQuery
 24. +++++ Test Errors on Input
-INPUT ERROR: Invalid keyword for boolean value =  blah. Must be "true" or "false" upper or lower case
+INPUT ERROR: Invalid keyword for boolean value = blah. Must be "true" or "false" upper or lower case
 INPUT ERROR: Value conversion error. 1234blah. type uint32
 
 INPUT ERROR: Value conversion error. 9999999. type uint8
@@ -2691,3 +2704,64 @@ INPUT ERROR: Value conversion error. 9999999. type uint8
 25. +++++ Test niall operation
 test/cimv2 Total Classes=777, with Instances=0, Instances=0
 25. +++++ Test niall operation
+26. +++++ Test pull Operations
+1  Test_CLITestProviderClass returned.
+
+1 instances of class Test_CLITestProviderClass returned.
+
+
+// path= //ChangedHostName/test/TestProvider:Test_CLITestProviderClass.Id="Mike"
+
+instance of Test_CLITestProviderClass
+{
+    Id = "Mike";
+    Name = "Bob";
+    requestInputParameters = "role=; resultRole=; associationClass=Test_CLITestProviderLinkClass; "
+        "resultClass=; includeQualifiers=false; includeClassOrigin=false; "
+        "propertyList=NULL";
+    scalBool = TRUE;
+    scalUint8 = 220;
+    scalSint8 = 124;
+    scalUint16 = 100;
+    scalSint16 = 100;
+    scalUint32 = 100;
+    scalSint32 = 100;
+    scalUint64 = 100;
+    scalSint64 = NULL;
+    scalReal32 = 1.0000000000000000e+02;
+    scalReal64 = 1.0000000000000000e+02;
+    scalString = "teststring";
+    scalDateTime = "19991224120000.000000+360";
+    defaultBool = TRUE;
+    defaultUint8 = 4;
+    defaultSint8 = 4;
+    defaultUint16 = 4;
+    defaultSint16 = 4;
+    defaultUint32 = 4;
+    defaultSint32 = 4;
+    defaultUint64 = 4;
+    defaultSint64 = 4;
+    defaultReal32 = NULL;
+    defaultReal64 = NULL;
+    defaultString = "test\"embedded\"quote";
+    defaultDateTime = NULL;
+    arrayBool = {TRUE, FALSE, TRUE};
+    arrayUint8 = {4, 128, 240};
+    arraySint8 = {4, 126, -126};
+    arrayUint16 = {4, 128, 240};
+    arraySint16 = {4, 126, -126};
+    arrayUint32 = {4, 128, 240};
+    arraySint32 = {4, 126, -126};
+    arrayUint64 = {4, 128, 240};
+    arraySint64 = NULL;
+    arrayReal32 = {4.0000000000000000e+00, 1.2800000000000000e+02, 
+        2.4000000000000000e+02};
+    arrayReal64 = {4.0000000000000000e+00, 1.2800000000000000e+02, 
+        2.4000000000000000e+02};
+    arrayString = {"First", "Second", "Third"};
+    arrayDateTime = {"19991224120000.000000+360", "19991224120000.000000+360", 
+        "19991224120000.000000+360"};
+};
+1 pullInstancePaths
+//ChangedHostName/test/TestProvider:Test_CLITestProviderClass.Id="Mike"
+26. +++++ Test pull Operations

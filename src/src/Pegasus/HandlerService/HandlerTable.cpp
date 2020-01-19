@@ -74,9 +74,13 @@ CIMHandler* HandlerTable::getHandler(
 
 CIMHandler* HandlerTable::_lookupHandler(const String& handlerId)
 {
-    for (Uint32 i = 0, n = _handlers.size(); i < n; i++)
+    for (Uint32 i = 0, n = _handlers.size(); i < n; ++i)
+    {
         if (String::equal(_handlers[i].handlerId, handlerId))
+        {
             return _handlers[i].handler;
+        }
+    }
 
     return 0;
 }
@@ -148,7 +152,6 @@ HandlerTable::~HandlerTable()
             PEG_TRACE((TRC_DISCARDED_DATA, Tracer::LEVEL2,
                 "Unknown error caught from %s terminate() method",
                 (const char*)_handlers[i].handlerId.getCString()));
-            PEGASUS_ASSERT(0);
         }
 
         delete _handlers[i].handler;

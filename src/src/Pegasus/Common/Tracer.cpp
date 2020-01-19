@@ -84,6 +84,7 @@ char const* Tracer::TRACE_COMPONENT_LIST[] =
     "ObjectResolution",
     "WQL",
     "CQL",
+    "FQL",
     "Thread",
     "CIMExportRequestDispatcher",
     "SSL",
@@ -101,9 +102,14 @@ char const* Tracer::TRACE_COMPONENT_LIST[] =
     "IndicationReceipt",
     "CMPIProviderInterface",
     "WsmServer",
+    "RsServer",
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+    "WebServer",
+#endif
     "LogMessages",
     "WMIMapperConsumer",
-    "InternalProvider"
+    "InternalProvider",
+    "EnumContext"
 };
 
 // Set the number of defined components
@@ -452,9 +458,7 @@ SharedArrayPtr<char> Tracer::getHTTPRequestMessage(
     char* sep;
     const char* line = requestBuf.get();
 
-    while ((sep = HTTPMessage::findSeparator(
-        line, (Uint32)(requestSize - (line - requestBuf.get())))) &&
-        (line != sep))
+    while ((sep = HTTPMessage::findSeparator(line)) && (line != sep))
     {
         if (HTTPMessage::expectHeaderToken(line, "Authorization") &&
              HTTPMessage::expectHeaderToken(line, ":") &&
@@ -608,11 +612,6 @@ void Tracer::_traceCString(
     }
     else
     {
-        //
-        // Since the message is blank, form a string using the pid and tid
-        //
-        char* tmpBuffer;
-
         //
         // Allocate messageHeader.
         // Needs to be updated if additional info is added
@@ -1104,5 +1103,41 @@ void Tracer::traceCIMException(
 }
 
 #endif /* !PEGASUS_REMOVE_TRACE */
+
+//set the trace file size only when the tracing is on a file
+void Tracer::setMaxTraceFileSize(const String &size)
+{
+    Tracer *inst = _getInstance();
+    if ( inst->getTraceFacility() == TRACE_FACILITY_FILE )
+    {
+        Uint32 traceFileSizeKBytes = 0;
+        StringConversion::decimalStringToUint32(size, traceFileSizeKBytes);
+
+        //Safe to typecast here as we know that handler is of type file
+        TraceFileHandler *hdlr = (TraceFileHandler*) (inst->_traceHandler);
+
+        hdlr->setMaxTraceFileSize(traceFileSizeKBytes*1024);
+
+    }
+}
+
+//set the trace file number for rolling only when the tracing is on a file
+void Tracer::setMaxTraceFileNumber(const String &maxTraceFileNumber)
+{
+    Tracer *inst = _getInstance();
+
+    if ( inst->getTraceFacility() == TRACE_FACILITY_FILE )
+    {
+        Uint32 numberOfTraceFiles = 0;
+        StringConversion::decimalStringToUint32(maxTraceFileNumber,
+                                                numberOfTraceFiles);
+
+        //Safe to typecast here as we know that handler is of type file
+        TraceFileHandler *hdlr = (TraceFileHandler*) (inst->_traceHandler);
+
+        hdlr->setMaxTraceFileNumber(numberOfTraceFiles);
+     }
+}
+
 
 PEGASUS_NAMESPACE_END

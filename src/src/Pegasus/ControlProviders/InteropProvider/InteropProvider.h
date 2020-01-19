@@ -213,6 +213,15 @@ private:
         const CIMName& className,
         Boolean includeQualifiers,
         CIMClass& returnedClass);
+    /*
+     * CIM communication mechanism instance building starts with this function
+     * and completed by buildCIMXMLCommunicationMechanismInstance
+     */
+    void _buildCommInstSkeleton(
+        const Boolean isHttpsEnabled,
+        const Array<String> &ips,
+        const CIMClass &commMechClass,
+        Array<CIMInstance> &instances );
 
     CIMInstance buildCIMXMLCommunicationMechanismInstance(
         const String& namespaceType,
@@ -383,7 +392,7 @@ private:
     // This function fetches the other side of the reference.
     Array<CIMInstance> getReferencedInstances(
         const Array<CIMInstance> &refs,
-        const String targetRole,
+        const String &targetRole,
         const OperationContext & context,
         const CIMPropertyList & propertyList);
 

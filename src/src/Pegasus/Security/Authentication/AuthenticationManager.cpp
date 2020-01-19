@@ -43,10 +43,9 @@
 
 #include <Pegasus/Common/AutoPtr.h>
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-#include "KerberosAuthenticationHandler.h"
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+#include "NegotiateAuthenticationHandler.h"
 #endif
-
 
 PEGASUS_USING_STD;
 
@@ -114,7 +113,7 @@ Boolean AuthenticationManager::isRemotePrivilegedUserAccessAllowed(
 //
 // Perform http authentication
 //
-Boolean AuthenticationManager::performHttpAuthentication(
+AuthenticationStatus AuthenticationManager::performHttpAuthentication(
     const String& authHeader,
     AuthenticationInfo* authInfo)
 {
@@ -136,10 +135,10 @@ Boolean AuthenticationManager::performHttpAuthentication(
                 "Malformed HTTP authentication header: %s",
             (const char*)authHeader.getCString()));
         PEG_METHOD_EXIT();
-        return false;
+        return AuthenticationStatus(AUTHSC_UNAUTHORIZED);
     }
 
-    Boolean authenticated = false;
+    AuthenticationStatus authStatus(AUTHSC_UNAUTHORIZED);
 
     //
     // Check the authenticationinformation and do the authentication
@@ -147,39 +146,39 @@ Boolean AuthenticationManager::performHttpAuthentication(
     if ( String::equalNoCase(authType, "Basic") &&
          String::equal(_httpAuthType, "Basic") )
     {
-        authenticated = _httpAuthHandler->authenticate(cookie, authInfo);
+        authStatus = _httpAuthHandler->authenticate(cookie, authInfo);
     }
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
     else if ( String::equalNoCase(authType, "Negotiate") &&
-              String::equal(_httpAuthType, "Kerberos") )
+              String::equal(_httpAuthType, "Negotiate") )
     {
-        authenticated = _httpAuthHandler->authenticate(cookie, authInfo);
+        authStatus = _httpAuthHandler->authenticate(cookie, authInfo);
     }
 #endif
     // FUTURE: Add code to check for "Digest" when digest
     // authentication is implemented.
 
-    if ( authenticated )
+    if ( authStatus.isSuccess() )
     {
         authInfo->setAuthType(authType);
     }
 
     PEG_METHOD_EXIT();
 
-    return authenticated;
+    return authStatus;
 }
 
 //
 // Perform pegasus sepcific local authentication
 //
-Boolean AuthenticationManager::performPegasusAuthentication(
+AuthenticationStatus AuthenticationManager::performPegasusAuthentication(
     const String& authHeader,
     AuthenticationInfo* authInfo)
 {
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "AuthenticationManager::performPegasusAuthentication()");
 
-    Boolean authenticated = false;
+    AuthenticationStatus authStatus(AUTHSC_UNAUTHORIZED);
 
     String authType;
     String userName;
@@ -198,32 +197,33 @@ Boolean AuthenticationManager::performPegasusAuthentication(
                 "Malformed Pegasus authentication header: %s",
             (const char*)authHeader.getCString()));
         PEG_METHOD_EXIT();
-        return false;
+        return AuthenticationStatus(AUTHSC_UNAUTHORIZED);
     }
 
     // The HTTPAuthenticatorDelegator ensures only local authentication
     // requests get here.
     PEGASUS_ASSERT(authType == "Local");
 
-    authenticated =
-        _localAuthHandler->authenticate(cookie, authInfo);
+    authStatus = _localAuthHandler->authenticate(cookie, authInfo);
 
-    if ( authenticated )
+    if ( authStatus.isSuccess() )
     {
         authInfo->setAuthType(authType);
     }
 
     PEG_METHOD_EXIT();
 
-    return authenticated;
+    return authStatus;
 }
 
 //
 // Validate user.
 //
-Boolean AuthenticationManager::validateUserForHttpAuth (const String& userName)
+AuthenticationStatus AuthenticationManager::validateUserForHttpAuth(
+    const String& userName,
+    AuthenticationInfo* authInfo)
 {
-    return _httpAuthHandler->validateUser(userName);
+    return _httpAuthHandler->validateUser(userName,authInfo);
 }
 
 //
@@ -265,7 +265,6 @@ String AuthenticationManager::getPegasusAuthResponseHeader(
         _localAuthHandler->getAuthResponseHeader(authType, userName, authInfo);
 
     PEG_METHOD_EXIT();
-
     return respHeader;
 
 }
@@ -273,7 +272,7 @@ String AuthenticationManager::getPegasusAuthResponseHeader(
 //
 // Get HTTP authentication response header
 //
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
 String AuthenticationManager::getHttpAuthResponseHeader(
     AuthenticationInfo* authInfo)
 #else
@@ -283,15 +282,13 @@ String AuthenticationManager::getHttpAuthResponseHeader()
     PEG_METHOD_ENTER(TRC_AUTHENTICATION,
         "AuthenticationManager::getHttpAuthResponseHeader()");
 
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
     String respHeader = _httpAuthHandler->getAuthResponseHeader(
         String::EMPTY, String::EMPTY, authInfo);
 #else
     String respHeader = _httpAuthHandler->getAuthResponseHeader();
 #endif
-
     PEG_METHOD_EXIT();
-
     return respHeader;
 }
 
@@ -334,29 +331,10 @@ Authenticator* AuthenticationManager::_getHttpAuthHandler()
     {
         handler.reset((Authenticator* ) new BasicAuthenticationHandler( ));
     }
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    else if ( String::equal(_httpAuthType, "Kerberos") )
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    if ( String::equal(_httpAuthType, "Negotiate") )
     {
-        handler.reset((Authenticator*) new KerberosAuthenticationHandler());
-        AutoPtr<KerberosAuthenticationHandler> kerberosHandler(
-            (KerberosAuthenticationHandler *)handler.get());
-        int itFailed = kerberosHandler->initialize();
-        kerberosHandler.release();
-        if (itFailed)
-        {
-            if (handler.get())
-            {
-                handler.reset(0);
-            }
-            MessageLoaderParms parms(
-                "Security.Authentication.AuthenticationManager."
-                    "AUTHENTICATION_HANDLER_KERBEROS_FAILED_TO_INITIALIZE",
-                "CIMOM server authentication handler for Kerberos failed to "
-                    "initialize properly.");
-            Logger::put_l(Logger::ERROR_LOG, System::CIMSERVER, Logger::SEVERE,
-                parms);
-            throw Exception(parms);
-        }
+        handler.reset((Authenticator* ) new NegotiateAuthenticationHandler( ));
     }
 #endif
     // FUTURE: uncomment these line when Digest authentication
@@ -372,7 +350,7 @@ Authenticator* AuthenticationManager::_getHttpAuthHandler()
         // This should never happen. Gets here only if Security Config
         // property owner has not validated the configured http auth type.
         //
-        PEGASUS_ASSERT(0);
+        PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
     }
 
     PEG_METHOD_EXIT();

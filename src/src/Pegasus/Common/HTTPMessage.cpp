@@ -41,8 +41,6 @@ PEGASUS_USING_STD;
 
 PEGASUS_NAMESPACE_BEGIN
 
-static const char* _HTTP_HEADER_CONTENT_TYPE = "content-type";
-
 //------------------------------------------------------------------------------
 //
 // Implementation notes:
@@ -65,7 +63,7 @@ static const char* _HTTP_HEADER_CONTENT_TYPE = "content-type";
 //
 //------------------------------------------------------------------------------
 
-char* HTTPMessage::findSeparator(const char* data, Uint32 size)
+char* HTTPMessage::findSeparator(const char* data)
 {
     // [^\0\r\n]
     static const unsigned char _skip[256] =
@@ -167,13 +165,13 @@ Boolean HTTPMessage::parse(
     contentLength = 0;
 
     char* data = (char*)message.getData();
-    Uint32 size = message.size();
+    const Uint32 size = message.size();
     char* line = data;
     char* sep;
     Boolean firstTime = true;
     Uint32 headersFound = 0;
 
-    while ((sep = findSeparator(line, (Uint32)(size - (line - data)))))
+    while ((sep = findSeparator(line)))
     {
         // Look for double separator which terminates the header?
 
@@ -185,14 +183,17 @@ Boolean HTTPMessage::parse(
 
             // Determine length of content:
 
-            contentLength = (Uint32)(message.size() - (content - data));
+            contentLength = (Uint32)(size - (content - data));
             break;
         }
 
         Uint32 lineLength = (Uint32)(sep - line);
 
         if (firstTime)
+        {
             startLine.assign(line, lineLength);
+            firstTime = false;
+        }
         else
         {
             // Find the colon:
@@ -284,15 +285,15 @@ Boolean HTTPMessage::parse(
         }
 
         line = sep + ((*sep == '\r') ? 2 : 1);
-        firstTime = false;
     }
     return true;
 }
 
 
-#ifdef PEGASUS_DEBUG
+
 void HTTPMessage::printAll(ostream& os) const
 {
+    static const char* _HTTP_HEADER_CONTENT_TYPE = "content-type";
     Message::print(os);
 
     String startLine;
@@ -349,7 +350,7 @@ void HTTPMessage::printAll(ostream& os) const
 
     os << endl;
 }
-#endif
+
 
 /*
  * Find the header prefix (i.e 2-digit number in front of cim keyword) if any.
@@ -478,7 +479,7 @@ Boolean HTTPMessage::parseRequestLine(
 
     methodName = startLine.subString(0, space1);
 
-    // Extrat the request-URI:
+    // Extract the request-URI:
 
     Uint32 space2 = startLine.find(space1 + 1, ' ');
 
@@ -694,5 +695,54 @@ Boolean HTTPMessage::parseHttpAuthHeader(
 
     return true;
 }
+
+void HTTPMessage::injectHeader(const String &header)
+{
+    char* data = (char*)message.getData();
+
+    // find where the request / status line ends and inject just after it
+    char* sep = findSeparator(data);
+    PEGASUS_ASSERT(sep);
+
+    int len = sep - data;
+    message.insert(len, (const char*) header.getCString(), header.size());
+}
+
+
+Boolean HTTPMessage::parseCookieHeader(
+    const String& cookieHeader,
+    const String& name,
+    String &value)
+{
+    // Cookie header syntax: Cookie: <name>=<value>;<name>=<value>...
+    Uint32 i = 0;
+    Uint32 size = cookieHeader.size();
+
+    while(i < size)
+    {
+        // find name=value;
+        Uint32 namesep = cookieHeader.find(i, '=');
+
+        if (namesep == PEG_NOT_FOUND)
+            return false;
+
+        Uint32 valsep = cookieHeader.find(namesep, ';');
+        if (valsep == PEG_NOT_FOUND)
+        {
+            // there is no ';', it must be the last value
+            valsep = size - 1;
+        }
+
+        String cookieName = cookieHeader.subString(i, namesep-i);
+        String cookieValue = cookieHeader.subString(namesep+1, valsep-namesep);
+        if (name == cookieName)
+        {
+            value = cookieValue;
+            return true;
+        }
+        i = valsep + 1;
+    }
+    return false;
+};
 
 PEGASUS_NAMESPACE_END

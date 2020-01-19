@@ -39,6 +39,7 @@
 #include <Pegasus/Common/PegasusVersion.h>
 #include <Pegasus/Common/FileSystem.h>
 #include <Pegasus/Common/Constants.h>
+#include <Pegasus/Common/StringConversion.h>
 
 #include "ConfigExceptions.h"
 #include "ConfigManager.h"
@@ -91,6 +92,10 @@ static struct OwnerEntry _properties[] =
          (ConfigPropertyOwner*)&ConfigManager::traceOwner},
     {"traceMemoryBufferKbytes",
          (ConfigPropertyOwner*)&ConfigManager::traceOwner},
+    {"traceFileSizeKBytes",
+         (ConfigPropertyOwner*)&ConfigManager::traceOwner},
+    {"numberOfTraceFiles",
+         (ConfigPropertyOwner*)&ConfigManager::traceOwner},
 #if !defined(PEGASUS_USE_SYSLOGS)
     {"logdir",
          (ConfigPropertyOwner*)&ConfigManager::logOwner},
@@ -133,6 +138,8 @@ static struct OwnerEntry _properties[] =
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
     {"sslTrustStore",
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
+    {"sslBackwardCompatibility",
+         (ConfigPropertyOwner*)&ConfigManager::securityOwner},
 #ifdef PEGASUS_ENABLE_SSL_CRL_VERIFICATION
     {"crlStore",
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
@@ -141,10 +148,6 @@ static struct OwnerEntry _properties[] =
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
     {"sslTrustStoreUserName",
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
-#ifdef PEGASUS_KERBEROS_AUTHENTICATION
-    {"kerberosServiceName",
-         (ConfigPropertyOwner*)&ConfigManager::securityOwner},
-#endif
 #ifdef PEGASUS_OS_ZOS
     {"enableCFZAPPLID",
          (ConfigPropertyOwner*)&ConfigManager::securityOwner},
@@ -187,6 +190,14 @@ static struct OwnerEntry _properties[] =
     {"enableAuditLog",
          (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
 #endif
+#ifdef PEGASUS_ENABLE_PROTOCOL_WEB
+      {"webRoot",
+               (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
+      {"indexFile",
+               (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
+      {"mimeTypesFile",
+               (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
+#endif
     {"socketWriteTimeout",
          (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
     {"idleConnectionTimeout",
@@ -200,15 +211,31 @@ static struct OwnerEntry _properties[] =
     {"fullyQualifiedHostName",
         (ConfigPropertyOwner*)&ConfigManager::defaultOwner}
 
+#ifdef PEGASUS_ENABLE_SESSION_COOKIES
+    ,{"httpSessionTimeout",
+        (ConfigPropertyOwner*)&ConfigManager::securityOwner}
+#endif
+
 #ifdef PEGASUS_ENABLE_DMTF_INDICATION_PROFILE_SUPPORT
     ,{"maxIndicationDeliveryRetryAttempts",
         (ConfigPropertyOwner*)&ConfigManager::indicationServiceOwner},
     {"minIndicationDeliveryRetryInterval",
         (ConfigPropertyOwner*)&ConfigManager::indicationServiceOwner}
 #endif
+
+#ifdef PEGASUS_NEGOTIATE_AUTHENTICATION
+    ,{"mapToLocalName",
+         (ConfigPropertyOwner*)&ConfigManager::securityOwner}
+#endif
+    ,{"pullOperationsMaxObjectCount",
+        (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
+    {"pullOperationsMaxTimeout",
+        (ConfigPropertyOwner*)&ConfigManager::defaultOwner},
+    {"pullOperationsDefaultTimeout",
+        (ConfigPropertyOwner*)&ConfigManager::defaultOwner}
 };
 
-const Uint32 NUM_PROPERTIES = sizeof(_properties) / sizeof(struct OwnerEntry);
+const Uint32 NUM_PROPERTIES = sizeof(_properties) / sizeof(_properties[0]);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -237,7 +264,7 @@ static struct FixedValueEntry _fixedValues[] =
 };
 
 const Uint32 NUM_FIXED_PROPERTIES =
-    sizeof(_fixedValues) / sizeof(struct FixedValueEntry);
+    sizeof(_fixedValues) / sizeof( _fixedValues[0]);
 
 
 /**
@@ -291,7 +318,6 @@ Boolean ConfigManager::initCurrentValue(
     const String& propertyValue)
 {
     ConfigPropertyOwner* propertyOwner = 0;
-    Boolean success = true;
 
     //
     // get property owner object from the config table.
@@ -311,6 +337,7 @@ Boolean ConfigManager::initCurrentValue(
     //
     propertyOwner->initCurrentValue(propertyName, propertyValue);
 
+    Boolean success = true;
     if (useConfigFiles)
     {
         try
@@ -341,7 +368,6 @@ Boolean ConfigManager::updateCurrentValue(
     Uint32 timeoutSeconds,
     Boolean unset)
 {
-    String prevValue;
 
     //
     // get property owner object from the config table.
@@ -356,7 +382,7 @@ Boolean ConfigManager::updateCurrentValue(
     //
     // keep a copy of the existing config value
     //
-    prevValue = propertyOwner->getCurrentValue(name);
+    String prevValue = propertyOwner->getCurrentValue(name);
 
     //
     // ask owner to update the current value
@@ -417,7 +443,6 @@ Boolean ConfigManager::updatePlannedValue(
     const String& value,
     Boolean unset)
 {
-    String prevValue;
 
     //
     // get property owner object from the config table.
@@ -432,7 +457,7 @@ Boolean ConfigManager::updatePlannedValue(
     //
     // keep a copy of the existing config value
     //
-    prevValue = propertyOwner->getPlannedValue(name);
+    String prevValue = propertyOwner->getPlannedValue(name);
 
     //
     // ask owner to update the planned value to new value
@@ -588,6 +613,7 @@ void ConfigManager::getPropertyHelp(
         throw UnrecognizedConfigProperty(name);
     }
     propertyHelp.append(propertyOwner->getPropertyHelp(name));
+    propertyHelp.append(propertyOwner->getPropertyHelpSupplement(name));
 }
 
 /**
@@ -974,7 +1000,7 @@ String ConfigManager::getHomedPath(const String& value)
 {
     String homedPath;
 
-    if (value != String::EMPTY)
+    if (value.size() != 0 )
     {
         if (System::is_absolute_path((const char *)value.getCString()))
         {
@@ -1012,7 +1038,9 @@ String ConfigManager::getHomedPath(const String& value)
             }
 
             if (token == 1)
+            {
                 homedPath.append(FileSystem::getPathDelimiter());
+            }
             temp.remove(0, pos + token);
         } while (temp.size() > 0);
     }
@@ -1033,6 +1061,28 @@ Boolean ConfigManager::isValidBooleanValue(const String& value)
     }
     return false;
 }
+
+Uint32 ConfigManager::parseUint32Value(const String& propertyValue)
+{
+    Uint64 v;
+    StringConversion::decimalStringToUint64(
+       (const char*)propertyValue.getCString(), v);
+    return (Uint32) v;
+}
+
+Boolean ConfigManager::isValidUint32Value(const String& strValue,
+    Uint32 min,
+    Uint32 max)
+{
+    Uint32 v;
+    Boolean rtn = StringConversion::decimalStringToUint32(strValue, v);
+    if (rtn && ( (v >= min) && (v <= max)) )
+    {
+        return true;
+    }
+    return false;
+}
+
 Array<HostAddress> ConfigManager::getListenAddress(const String &propertyValue)
 {
     Array<String> interfaces = DefaultPropertyOwner::parseAndGetListenAddress (

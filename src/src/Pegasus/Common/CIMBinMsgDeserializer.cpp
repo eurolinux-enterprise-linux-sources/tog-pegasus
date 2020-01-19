@@ -32,6 +32,7 @@
 #include <Pegasus/Common/XmlReader.h>
 #include <Pegasus/Common/OperationContextInternal.h>
 #include <Pegasus/Common/System.h>
+#include <Pegasus/Common/Tracer.h>
 
 #include "CIMBinMsgDeserializer.h"
 
@@ -41,6 +42,8 @@ CIMMessage* CIMBinMsgDeserializer::deserialize(
     CIMBuffer& in,
     size_t size)
 {
+    PEG_METHOD_ENTER(TRC_DISPATCHER, "CIMBinMsgDeserializer::deserialize");
+
     if (size == 0)
         return 0;
 
@@ -70,6 +73,10 @@ CIMMessage* CIMBinMsgDeserializer::deserialize(
     if (!in.getBoolean(binaryResponse))
         return 0;
 
+    Boolean internalOperation;
+
+    if (!in.getBoolean(internalOperation))
+        return 0;
     // [type]
 
     MessageType type;
@@ -151,7 +158,21 @@ CIMMessage* CIMBinMsgDeserializer::deserialize(
     msg->setComplete(isComplete);
     msg->setIndex(index);
     msg->operationContext = operationContext;
+    msg->internalOperation = internalOperation;
 
+    PEG_TRACE((TRC_DISPATCHER,  Tracer::LEVEL4,
+        "Deserialize MessageId=%s type=%s binaryReq=%s"
+                       " binaryResp=%s iscomplete=%s internal=%s",
+        (const char*)msg->messageId.getCString(),
+        MessageTypeToString(msg->getType()),
+        boolToString(msg->binaryRequest),
+        boolToString(msg->binaryResponse),
+        boolToString(msg->isComplete()),
+        boolToString(msg->internalOperation)
+        ));
+
+    PEGASUS_DEBUG_ASSERT(msg->valid());
+    PEG_METHOD_EXIT();
     return msg;
 }
 
@@ -226,7 +247,7 @@ CIMRequestMessage* CIMBinMsgDeserializer::_getRequestMessage(
                 oreq = _getEnumerateInstancesRequestMessage(in);
                 break;
             case CIM_ENUMERATE_INSTANCE_NAMES_REQUEST_MESSAGE:
-                oreq = _getEnumerateInstanceNamesRequestMessage(in);
+                oreq = _getEnumerateInstanceNamesRequestMessage();
                 break;
             case CIM_EXEC_QUERY_REQUEST_MESSAGE:
                 oreq = _getExecQueryRequestMessage(in);
@@ -253,7 +274,7 @@ CIMRequestMessage* CIMBinMsgDeserializer::_getRequestMessage(
                 oreq = _getInvokeMethodRequestMessage(in);
                 break;
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                 break;
         }
 
@@ -300,7 +321,7 @@ CIMRequestMessage* CIMBinMsgDeserializer::_getRequestMessage(
                 ireq = _getDeleteSubscriptionRequestMessage(in);
                 break;
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                 break;
         }
 
@@ -346,18 +367,18 @@ CIMRequestMessage* CIMBinMsgDeserializer::_getRequestMessage(
                 msg = _getNotifyConfigChangeRequestMessage(in);
                 break;
             case CIM_SUBSCRIPTION_INIT_COMPLETE_REQUEST_MESSAGE:
-                msg = _getSubscriptionInitCompleteRequestMessage(in);
+                msg = _getSubscriptionInitCompleteRequestMessage();
                 break;
             case CIM_INDICATION_SERVICE_DISABLED_REQUEST_MESSAGE:
-                msg = _getIndicationServiceDisabledRequestMessage(in);
+                msg = _getIndicationServiceDisabledRequestMessage();
                 break;
             case PROVAGT_GET_SCMOCLASS_REQUEST_MESSAGE:
-                msg = _getProvAgtGetScmoClassRequestMessage(in);            
+                msg = _getProvAgtGetScmoClassRequestMessage(in);
                 break;
 
 
             default:
-                PEGASUS_ASSERT(0);
+                PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
                 break;
         }
 
@@ -396,13 +417,13 @@ CIMResponseMessage* CIMBinMsgDeserializer::_getResponseMessage(
             msg = _getGetInstanceResponseMessage(in, binaryResponse);
             break;
         case CIM_DELETE_INSTANCE_RESPONSE_MESSAGE:
-            msg = _getDeleteInstanceResponseMessage(in);
+            msg = _getDeleteInstanceResponseMessage();
             break;
         case CIM_CREATE_INSTANCE_RESPONSE_MESSAGE:
             msg = _getCreateInstanceResponseMessage(in);
             break;
         case CIM_MODIFY_INSTANCE_RESPONSE_MESSAGE:
-            msg = _getModifyInstanceResponseMessage(in);
+            msg = _getModifyInstanceResponseMessage();
             break;
         case CIM_ENUMERATE_INSTANCES_RESPONSE_MESSAGE:
             msg = _getEnumerateInstancesResponseMessage(in, binaryResponse);
@@ -417,7 +438,7 @@ CIMResponseMessage* CIMBinMsgDeserializer::_getResponseMessage(
             msg = _getGetPropertyResponseMessage(in);
             break;
         case CIM_SET_PROPERTY_RESPONSE_MESSAGE:
-            msg = _getSetPropertyResponseMessage(in);
+            msg = _getSetPropertyResponseMessage();
             break;
         case CIM_ASSOCIATORS_RESPONSE_MESSAGE:
             msg = _getAssociatorsResponseMessage(in, binaryResponse);
@@ -435,19 +456,19 @@ CIMResponseMessage* CIMBinMsgDeserializer::_getResponseMessage(
             msg = _getInvokeMethodResponseMessage(in);
             break;
         case CIM_CREATE_SUBSCRIPTION_RESPONSE_MESSAGE:
-            msg = _getCreateSubscriptionResponseMessage(in);
+            msg = _getCreateSubscriptionResponseMessage();
             break;
         case CIM_MODIFY_SUBSCRIPTION_RESPONSE_MESSAGE:
-            msg = _getModifySubscriptionResponseMessage(in);
+            msg = _getModifySubscriptionResponseMessage();
             break;
         case CIM_DELETE_SUBSCRIPTION_RESPONSE_MESSAGE:
-            msg = _getDeleteSubscriptionResponseMessage(in);
+            msg = _getDeleteSubscriptionResponseMessage();
             break;
         case CIM_EXPORT_INDICATION_RESPONSE_MESSAGE:
-            msg = _getExportIndicationResponseMessage(in);
+            msg = _getExportIndicationResponseMessage();
             break;
         case CIM_PROCESS_INDICATION_RESPONSE_MESSAGE:
-            msg = _getProcessIndicationResponseMessage(in);
+            msg = _getProcessIndicationResponseMessage();
             break;
         case CIM_DISABLE_MODULE_RESPONSE_MESSAGE:
             msg = _getDisableModuleResponseMessage(in);
@@ -456,27 +477,27 @@ CIMResponseMessage* CIMBinMsgDeserializer::_getResponseMessage(
             msg = _getEnableModuleResponseMessage(in);
             break;
         case CIM_STOP_ALL_PROVIDERS_RESPONSE_MESSAGE:
-            msg = _getStopAllProvidersResponseMessage(in);
+            msg = _getStopAllProvidersResponseMessage();
             break;
         case CIM_INITIALIZE_PROVIDER_AGENT_RESPONSE_MESSAGE:
             msg =
-                _getInitializeProviderAgentResponseMessage(in);
+                _getInitializeProviderAgentResponseMessage();
             break;
         case CIM_NOTIFY_CONFIG_CHANGE_RESPONSE_MESSAGE:
-            msg = _getNotifyConfigChangeResponseMessage(in);
+            msg = _getNotifyConfigChangeResponseMessage();
             break;
         case CIM_SUBSCRIPTION_INIT_COMPLETE_RESPONSE_MESSAGE:
-            msg = _getSubscriptionInitCompleteResponseMessage(in);
+            msg = _getSubscriptionInitCompleteResponseMessage();
             break;
         case CIM_INDICATION_SERVICE_DISABLED_RESPONSE_MESSAGE:
-            msg = _getIndicationServiceDisabledResponseMessage(in);
+            msg = _getIndicationServiceDisabledResponseMessage();
             break;
         case PROVAGT_GET_SCMOCLASS_RESPONSE_MESSAGE:
-            msg = _getProvAgtGetScmoClassResponseMessage(in);            
+            msg = _getProvAgtGetScmoClassResponseMessage(in);
             break;
 
         default:
-            PEGASUS_ASSERT(0);
+            PEGASUS_UNREACHABLE(PEGASUS_ASSERT(0);)
             break;
     }
 
@@ -743,6 +764,21 @@ Boolean CIMBinMsgDeserializer::_getOperationContext(
         operationContext.insert(CachedClassDefinitionContainer(cc));
     }
 
+    // [UserRoleContainer]
+
+    if (!in.getPresent(present))
+        return false;
+
+    if (present)
+    {
+        String userRole;
+
+        if (!in.getString(userRole))
+            return false;
+
+        operationContext.insert(UserRoleContainer(userRole));
+    }
+
     return true;
 }
 
@@ -1003,8 +1039,7 @@ CIMBinMsgDeserializer::_getEnumerateInstancesRequestMessage(
 }
 
 CIMEnumerateInstanceNamesRequestMessage*
-CIMBinMsgDeserializer::_getEnumerateInstanceNamesRequestMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getEnumerateInstanceNamesRequestMessage()
 {
     return new CIMEnumerateInstanceNamesRequestMessage(
         String::EMPTY,
@@ -1570,8 +1605,7 @@ CIMBinMsgDeserializer::_getNotifyConfigChangeRequestMessage(
 }
 
 CIMIndicationServiceDisabledRequestMessage*
-CIMBinMsgDeserializer::_getIndicationServiceDisabledRequestMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getIndicationServiceDisabledRequestMessage()
 {
     return new CIMIndicationServiceDisabledRequestMessage(
         String(),
@@ -1579,8 +1613,7 @@ CIMBinMsgDeserializer::_getIndicationServiceDisabledRequestMessage(
 }
 
 CIMSubscriptionInitCompleteRequestMessage*
-CIMBinMsgDeserializer::_getSubscriptionInitCompleteRequestMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getSubscriptionInitCompleteRequestMessage()
 {
     return new CIMSubscriptionInitCompleteRequestMessage(
         String::EMPTY,
@@ -1644,8 +1677,7 @@ CIMBinMsgDeserializer::_getGetInstanceResponseMessage(
 }
 
 CIMDeleteInstanceResponseMessage*
-CIMBinMsgDeserializer::_getDeleteInstanceResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getDeleteInstanceResponseMessage()
 {
     return new CIMDeleteInstanceResponseMessage(
         String::EMPTY,
@@ -1670,8 +1702,7 @@ CIMBinMsgDeserializer::_getCreateInstanceResponseMessage(
 }
 
 CIMModifyInstanceResponseMessage*
-CIMBinMsgDeserializer::_getModifyInstanceResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getModifyInstanceResponseMessage()
 {
     return new CIMModifyInstanceResponseMessage(
         String::EMPTY,
@@ -1698,7 +1729,6 @@ CIMBinMsgDeserializer::_getEnumerateInstancesResponseMessage(
             delete(msg);
             return 0;
         }
-
         return msg;
     }
     else
@@ -1708,7 +1738,6 @@ CIMBinMsgDeserializer::_getEnumerateInstancesResponseMessage(
             delete(msg);
             return 0;
         }
-
         return msg;
     }
 }
@@ -1887,8 +1916,7 @@ CIMBinMsgDeserializer::_getGetPropertyResponseMessage(
 }
 
 CIMSetPropertyResponseMessage*
-CIMBinMsgDeserializer::_getSetPropertyResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getSetPropertyResponseMessage()
 {
     return new CIMSetPropertyResponseMessage(
         String::EMPTY,
@@ -1925,8 +1953,7 @@ CIMBinMsgDeserializer::_getInvokeMethodResponseMessage(
 }
 
 CIMCreateSubscriptionResponseMessage*
-CIMBinMsgDeserializer::_getCreateSubscriptionResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getCreateSubscriptionResponseMessage()
 {
     return new CIMCreateSubscriptionResponseMessage(
         String::EMPTY,
@@ -1935,8 +1962,7 @@ CIMBinMsgDeserializer::_getCreateSubscriptionResponseMessage(
 }
 
 CIMModifySubscriptionResponseMessage*
-CIMBinMsgDeserializer::_getModifySubscriptionResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getModifySubscriptionResponseMessage()
 {
     return new CIMModifySubscriptionResponseMessage(
         String::EMPTY,
@@ -1945,8 +1971,7 @@ CIMBinMsgDeserializer::_getModifySubscriptionResponseMessage(
 }
 
 CIMDeleteSubscriptionResponseMessage*
-CIMBinMsgDeserializer::_getDeleteSubscriptionResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getDeleteSubscriptionResponseMessage()
 {
     return new CIMDeleteSubscriptionResponseMessage(
         String::EMPTY,
@@ -1955,8 +1980,7 @@ CIMBinMsgDeserializer::_getDeleteSubscriptionResponseMessage(
 }
 
 CIMExportIndicationResponseMessage*
-CIMBinMsgDeserializer::_getExportIndicationResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getExportIndicationResponseMessage()
 {
     return new CIMExportIndicationResponseMessage(
         String::EMPTY,
@@ -1965,8 +1989,7 @@ CIMBinMsgDeserializer::_getExportIndicationResponseMessage(
 }
 
 CIMProcessIndicationResponseMessage*
-CIMBinMsgDeserializer::_getProcessIndicationResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getProcessIndicationResponseMessage()
 {
     return new CIMProcessIndicationResponseMessage(
         String::EMPTY,
@@ -2011,8 +2034,7 @@ CIMBinMsgDeserializer::_getEnableModuleResponseMessage(
 }
 
 CIMStopAllProvidersResponseMessage*
-CIMBinMsgDeserializer::_getStopAllProvidersResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getStopAllProvidersResponseMessage()
 {
     return new CIMStopAllProvidersResponseMessage(
         String::EMPTY,
@@ -2021,8 +2043,7 @@ CIMBinMsgDeserializer::_getStopAllProvidersResponseMessage(
 }
 
 CIMInitializeProviderAgentResponseMessage*
-CIMBinMsgDeserializer::_getInitializeProviderAgentResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getInitializeProviderAgentResponseMessage()
 {
     return new CIMInitializeProviderAgentResponseMessage(
         String::EMPTY,
@@ -2031,8 +2052,7 @@ CIMBinMsgDeserializer::_getInitializeProviderAgentResponseMessage(
 }
 
 CIMNotifyConfigChangeResponseMessage*
-CIMBinMsgDeserializer::_getNotifyConfigChangeResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getNotifyConfigChangeResponseMessage()
 {
     return new CIMNotifyConfigChangeResponseMessage(
         String::EMPTY,
@@ -2041,8 +2061,7 @@ CIMBinMsgDeserializer::_getNotifyConfigChangeResponseMessage(
 }
 
 CIMSubscriptionInitCompleteResponseMessage*
-CIMBinMsgDeserializer::_getSubscriptionInitCompleteResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getSubscriptionInitCompleteResponseMessage()
 {
     return new CIMSubscriptionInitCompleteResponseMessage(
         String::EMPTY,
@@ -2051,8 +2070,7 @@ CIMBinMsgDeserializer::_getSubscriptionInitCompleteResponseMessage(
 }
 
 CIMIndicationServiceDisabledResponseMessage*
-CIMBinMsgDeserializer::_getIndicationServiceDisabledResponseMessage(
-    CIMBuffer& in)
+CIMBinMsgDeserializer::_getIndicationServiceDisabledResponseMessage()
 {
     return new CIMIndicationServiceDisabledResponseMessage(
         String(),
